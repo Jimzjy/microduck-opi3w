@@ -12,6 +12,7 @@
 | `overlay/uart2-dxl.dts` | 打开 uart2（PB0/PB1 → 排针 11/13）的设备树 overlay |
 | `eda/HAT_REVA_SCH.eprj2` | HAT 原理图工程（EasyEDA Pro），REV B |
 | `eda/imu_to_dxl_RevA_V1.eprj2` | IMU 板原理图工程（来自 kissqy，未改） |
+| `datasheets/` | 厂商原始文档存档：飞特 HD-1910-C001 规格书、Orange Pi Zero 3W 手册/原理图/位号图/DXF（含 SHA256 与用途说明，见其 README） |
 
 ## HAT 现状（截至本轮）
 

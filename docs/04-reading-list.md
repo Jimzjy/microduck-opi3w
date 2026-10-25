@@ -9,6 +9,14 @@
 固定版本：`35b435d7a6361c3480c2d0916ecf79c318710690`
 链接前缀：`https://github.com/fanhao375/microduck-replica/blob/35b435d7a6361c3480c2d0916ecf79c318710690/`
 
+## 0. 本仓自带的厂商文档
+
+上游文档看链接即可，但**厂商原始资料**建议离线放着，断网也能核对：
+
+| 位置 | 内容 |
+| --- | --- |
+| [hardware/datasheets/](../hardware/datasheets/README.md) | 飞特 HD-1910-C001 规格书（A/0）、Orange Pi Zero 3W 用户手册 v1.0、V1.2 原理图 / 位号图 / TOP+BOT DXF；带 SHA256 与「用来核对什么」 |
+
 ## 1. 上机前必读（电源、总线、IMU 的坑都在这几篇里）
 
 | 文档 | 一句话摘要 | 为什么我们要读 |
