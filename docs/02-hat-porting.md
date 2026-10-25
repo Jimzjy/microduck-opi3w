@@ -28,7 +28,7 @@
 
 ## 排针重映射对照表
 
-已产出：hardware/pinmap.md（Zero 3W 40-pin → HAT 信号，来自原理图实测；A733 列待手册补全）。
+已产出：hardware/pinmap.md（Zero 3W 40-pin → HAT 信号 + A733 官方原理图对照，结论：四类信号位置级全兼容，无需改 HAT 走线；剩余为 sun55i overlay 软件工作）。
 
 A733 侧待补：I2S 控制器引脚、I2C 控制器引脚、1 Mbps 半双工 UART 引脚、5V/GND。
 画板/下单前必须逐根核对。
