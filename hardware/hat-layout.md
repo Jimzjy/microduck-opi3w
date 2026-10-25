@@ -1,6 +1,6 @@
 # HAT RevA 原理图：元件清单与布局图（自 EDA 工程导出存档）
 
-工程：hardware/eda/HAT_REVA_SCH.eprj2（kissqy RevA C1 衍生版；用户改动：TH1→R35 22Ω、J5→H1、U5 补料号等）。
+工程：hardware/eda/HAT_REVA_SCH.eprj2（kissqy RevA C1 衍生版；用户改动：TH1→R35 22Ω、J5→H1 等；U5 与门及其外围已删，见 ⑤）。
 本文件记录 **2026-10-25 全天改造后的最终状态**，全部数据来自 EDA 自己导出的 Protel 网表与元件几何，不是目测。
 
 ## 网络命名规范（2026-10-25 统一）
@@ -160,3 +160,15 @@ console（uart0/ttyS0）继续留在 8/10 不动。落地方式（已改在原�
   - U1：1/3（左声道输出；U1-7 INL 已接 `GND`，见 ⑦）
 - 元件 Name 全部是字面值，没有 `={Value}` / `={Manufacturer Part}` 公式占位
 - 导线连接方式：**全图靠网络名连接，引脚上只挂短 stub**（kissqy 原始画法），stub 不是省事，是它的正确画法
+
+## DRC 状态（2026-10-25，EDA V3.2.149 实测）
+
+- **0 error / 4 warning**。
+- 消除的 8 条 error 全是同一类：「元件的引脚与焊盘未对应（引脚没有对应焊盘：1、2）」。
+  根因是**用 API 放置的器件只给了 `{libraryUuid, uuid}`**，`getState_Footprint()` 只存了 `uuid`，
+  缺 `libraryUuid` 与封装名；用 `eda.lib_Device.search()` 返回的完整 device 条目重建这 11 个器件
+  （C8、C9、C44、C45、R12、R13、R35、U11、F1、D1、H1）后全部消失——重建时引脚坐标不变，stub 连线不受影响。
+- 剩下 4 条 warning 都是提示性的，不影响出图/打样：
+  1. 「元件属性与供应商器件不一致，建议做器件标准化」×2（EDA 把全图器件按批归成两条，含 J4/C21/R26 等 kissqy 原生件）
+  2. 「存在悬空引脚，建议加 NC 标记」×2（J4 的 20 个空位、U2 的 9 个不用脚、U1-1/U1-3），
+     这些脚设计上就是不接；要做零警告就在 EDA 里逐个打 NC 标记（纯图形标记，不改电气）。
