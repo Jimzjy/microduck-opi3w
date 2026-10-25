@@ -46,5 +46,5 @@
 A733 侧已核实到引脚与控制器（详见 pinmap.md 末节「I2S / UART 在 A733 上能否配出来」）：
 - I2S0：PB5/PB6/PB8/PB7（= 排针 12/35/38/40），控制器 `i2s0_plat` 的 pinctrl 已配好，只差 `status = "okay"`；`i2s0_mach` 的 codec 子节点为空，供外挂 TLV320AIC3104 填 `sound-dai`。
 - I2C：TWI0（PB3/PB2 = 排针 3/5），厂商 dts 里 `status = "disabled"`，overlay 打开即可。
-- DXL UART：8/10 是 console 口（uart0 / ttyS0），复用需禁 console；或跳线到 11/13 用 uart2（PB0/PB1），保留 console。
+- DXL UART：**定案改走 11/13 的 uart2（PB0/PB1）**，console（uart0 / ttyS0）留在 8/10 不动。HAT 侧已随之改线：J4-7/9（排针 8/10）断开，J4-12/14（排针 11/13）接 `GPIO14_UART_TX` / `GPIO15_UART_RX`；overlay 见 `hardware/overlay/uart2-dxl.dts`。
 - 平台代号是 **sun60iw2**（不是 sun55i）。
