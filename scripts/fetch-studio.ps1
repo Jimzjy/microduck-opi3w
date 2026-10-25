@@ -6,6 +6,7 @@
   只下载 software/studio 这一个目录，不动其余 240MB。默认落在 <本仓>/vendor/microduck-replica，
   该目录已被 .gitignore 忽略，不会进我们的仓库。
   上游许可：software/studio 是 Apache-2.0；同仓的 *.md 与 3D 网格是 CC BY-NC-SA，本脚本不拉它们。
+  网络不稳会自动重试（默认 3 次，每次失败清掉半成品重来）；仍失败可换 -NoProxy 直连。
 
 .EXAMPLE
   .\fetch-studio.ps1
@@ -19,6 +20,7 @@ param(
     [string]$Dest   = '',
     [string]$Proxy  = 'http://127.0.0.1:10808',
     [switch]$NoProxy,
+    [int]$Retries = 3,
     # user@host ；给了就顺手 scp 到板子的 home 下
     [string]$PushTo = '',
     [string]$RemoteDir = ''   # 默认 /home/<user>/studio-dev
@@ -50,28 +52,51 @@ if (-not $NoProxy -and $Proxy) {
     Write-Host "使用代理: $Proxy" -ForegroundColor DarkGray
 }
 
-if (Test-Path (Join-Path $Dest '.git')) {
+function Invoke-Git {
+    param([string[]]$ArgList)
+    & $gitExe @gitArgs @ArgList
+    $code = $LASTEXITCODE
+    if ($code -ne 0) { throw "git $($ArgList[0]) 失败（exit $code）" }
+}
+
+# 判定一个目录是不是可用的仓库
+function Test-Repo {
+    param([string]$Path)
+    if (-not (Test-Path (Join-Path $Path '.git'))) { return $false }
+    & $gitExe -C $Path rev-parse --git-dir > $null 2>&1
+    return ($LASTEXITCODE -eq 0)
+}
+
+if (Test-Repo $Dest) {
     Write-Host "已存在仓库，改为拉取更新: $Dest" -ForegroundColor Cyan
     Push-Location $Dest
     try {
-        & $gitExe @gitArgs fetch --filter=blob:none origin $Commit
-        if ($LASTEXITCODE -ne 0) { throw "git fetch 失败（exit $LASTEXITCODE）" }
-        & $gitExe sparse-checkout set software/studio
-        if ($LASTEXITCODE -ne 0) { throw "sparse-checkout 失败（exit $LASTEXITCODE）" }
-        & $gitExe checkout --quiet $Commit
-        if ($LASTEXITCODE -ne 0) { throw "git checkout 失败（exit $LASTEXITCODE）" }
+        Invoke-Git @('fetch', '--filter=blob:none', 'origin', $Commit)
+        Invoke-Git @('sparse-checkout', 'set', 'software/studio')
+        Invoke-Git @('checkout', '--quiet', $Commit)
     } finally { Pop-Location }
 } else {
-    Write-Host "稀疏克隆到: $Dest" -ForegroundColor Cyan
-    & $gitExe @gitArgs clone --filter=blob:none --no-checkout --no-tags $Remote $Dest
-    if ($LASTEXITCODE -ne 0) { throw "git clone 失败（exit $LASTEXITCODE）。GitHub 慢就换 -Proxy，或加 -NoProxy 直连。" }
+    if (Test-Path $Dest) { Remove-Item $Dest -Recurse -Force }
+
+    $ok = $false
+    for ($i = 1; $i -le $Retries; $i++) {
+        Write-Host "稀疏克隆到: $Dest （第 $i/$Retries 次）" -ForegroundColor Cyan
+        & $gitExe @gitArgs clone --filter=blob:none --no-checkout --no-tags $Remote $Dest
+        if (Test-Repo $Dest) { $ok = $true; break }
+        Write-Host "  本次失败（exit $LASTEXITCODE），清理后重试…" -ForegroundColor Yellow
+        if (Test-Path $Dest) { Remove-Item $Dest -Recurse -Force -ErrorAction SilentlyContinue }
+        Start-Sleep -Seconds 3
+    }
+    if (-not $ok) {
+        throw ('克隆失败 ' + $Retries + ' 次。可能是代理不稳（Recv failure / Connection was reset）：' +
+               '换 -NoProxy 直连、或重跑本脚本；也可以手动下 zip 解 software/studio。')
+    }
 
     Push-Location $Dest
     try {
-        & $gitExe sparse-checkout init --cone
-        & $gitExe sparse-checkout set software/studio
-        & $gitExe checkout --quiet $Commit
-        if ($LASTEXITCODE -ne 0) { throw "checkout $Commit 失败（exit $LASTEXITCODE）" }
+        Invoke-Git @('sparse-checkout', 'init', '--cone')
+        Invoke-Git @('sparse-checkout', 'set', 'software/studio')
+        Invoke-Git @('checkout', '--quiet', $Commit)
     } finally { Pop-Location }
 }
 

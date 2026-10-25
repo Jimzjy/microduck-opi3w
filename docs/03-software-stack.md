@@ -67,8 +67,12 @@ cargo board --bins     # robotd/robotctl/padd/btd/mediad/configd/sounds/pet-dete
 **装法**（脚本 `scripts/fetch-studio.ps1` 负责拉，这里是人做的部分）：
 
 ```bash
+# 0. 先在本机拉下来（约 16 秒、400 文件 / 11.3 MB，落在 vendor/microduck-replica/software/studio，已被 .gitignore 忽略）
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/fetch-studio.ps1
+#    也可以加 -PushTo <user>@<板子IP> 一步推过去；-NoProxy 直连、-Retries N 改重试次数
+
 # 1. 整个 software/studio 拷到板子，放在运行用户的 home 下
-scp -r software/studio <user>@<板子IP>:/home/<user>/studio-dev
+scp -r vendor/microduck-replica/software/studio <user>@<板子IP>:/home/<user>/studio-dev
 
 # 2. 用运行用户启一次，确认能起来（-I 是必须的：只认 deps/ 里的版本）
 cd ~/studio-dev && python3 -I run.py --listen 0.0.0.0:8000
