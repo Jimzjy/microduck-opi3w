@@ -1,6 +1,20 @@
 # 移植无关文件不入库
 *.log
 *.tmp
+Thumbs.db
+desktop.ini
 
-# EasyEDA 自动备份（本地快照，不入库）
-hardware/eda/HAT_REVA_SCH_backup/
+# EasyEDA Pro 的本地快照与自动备份（仓库里只留 .eprj2 工程本体）
+hardware/eda/*_backup/
+hardware/eda/*.epro2
+hardware/eda/*.eprj2.bak
+hardware/eda/*.eprj2.bak*
+# 打开工程时生成的库缓存（32 位十六进制文件名的 SQLite）
+hardware/eda/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*
+
+# 按需拉取的上游（scripts/fetch-studio.ps1 的落地点）
+vendor/
+
+# 构建产物
+target/
+*.dtbo
