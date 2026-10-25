@@ -1,24 +1,31 @@
-# Zero 3W 40-pin 鈫?HAT 淇″彿瀵圭収锛堟潵鑷?kissqy HAT RevA 鍘熺悊鍥惧疄娴嬪鍑猴級
+# Zero 3W 40-pin → HAT 信号对照（来自 kissqy HAT RevA 原理图实测导出）
 
-鏉ユ簮锛欻AT_REVA_SCH.eprj2 鍘熺悊鍥惧绾跨綉缁?+ firmware overlay 娉ㄩ噴浜ゅ弶楠岃瘉銆?
-## 宸茬‘璁ょ殑淇″彿锛坘issqy 瀹炴満楠岃瘉杩囷級
+来源：HAT_REVA_SCH.eprj2 原理图导线网络 + firmware overlay 注释交叉验证。
 
-| 鍔熻兘 | Zero 3W 鎺掗拡鑴?| 缃戠粶锛堝師鐞嗗浘鍚嶏級 | SoC 鎺у埗鍣?/ overlay |
+## 已确认的信号（kissqy 实机验证过）
+
+| 功能 | Zero 3W 排针脚 | 网络（原理图名） | SoC 控制器 / overlay |
 |---|---|---|---|
-| 3V3 | 1 | 3V3 | 鈥?|
-| 5V | 2銆? | 5V | 鈥旓紙缁?AP63205/LM5050 鐢垫簮鍩燂級 |
-| I2C锛坈odec 0x18 / ToF J5锛?| 3銆? | GPIO02_I2C_SDA / GPIO03_I2C_SCL | i2c3 m0锛坄i2c3-pihat.dts`锛?00kHz锛岀 fusb302锛?|
-| DXL 鍗婂弻宸?UART | 8锛圱X锛夈€?0锛圧X锛?| GPIO14_UART_TX / GPIO15_UART_RX | uart2 m0锛坄REQUIRED_OVERLAY=uart2-m0`锛?Mbaud锛涗笌 SoC 璋冭瘯鍙ｅ鐢級 |
-| I2S 闊抽 | 12銆?5銆?8銆?0 | GPIO18_PCM_CLK / GPIO19_PCM_FS / GPIO20_PCM_DIN / GPIO21_PCM_DOUT | i2s3_2ch锛坄aic3104-i2c3.dts`锛孧CLK 12MHz 鍥哄畾鏃堕挓锛?|
-| GND | 6銆?銆?3銆?4銆?0銆?5銆?0銆?4銆?9 绛夋湭鎺ヤ俊鍙疯剼 | GND | 鈥?|
+| 3V3 | 1 | 3V3 | — |
+| 5V | 2、4 | 5V | 外部 5V 经 HAT U11 螺钉端子上板（板载 DC-DC 已拆） |
+| I2C（codec 0x18 / ToF J5） | 3、5 | GPIO02_I2C_SDA / GPIO03_I2C_SCL | i2c3 m0（`i2c3-pihat.dts`，400kHz，禁 fusb302） |
+| DXL 半双工 UART | 8（TX）、10（RX） | GPIO14_UART_TX / GPIO15_UART_RX | uart2 m0（`REQUIRED_OVERLAY=uart2-m0`，1Mbaud；与 SoC 调试口复用） |
+| I2S 音频 | 12、35、38、40 | GPIO18_PCM_CLK / GPIO19_PCM_FS / GPIO20_PCM_DIN / GPIO21_PCM_DOUT | i2s3_2ch（`aic3104-i2c3.dts`，MCLK 来自板上 Y1 12MHz 晶振，非排针） |
+| GND | 6、9、13、14、20、25、30、34、39 等未接信号脚 | GND | — |
 
-## J4 鎺掓瘝锛團H-00339 / C2685112锛夎创瑁呴敊浣嶈鍒?
-鍘熺悊鍥炬爣娉細**ZERO 濂囨暟鑴?n 鈫?J4 鐒婄洏 n+1锛涘伓鏁拌剼 n 鈫?J4 鐒婄洏 n鈭?**锛圝4 鐒婄洏鍙蜂笌鎺掗拡鍙锋暣浣撻敊涓€浣嶏紝PCB 甯冪嚎鏃舵敞鎰忥級銆?
-## 鏈娇鐢ㄧ殑鎺掗拡鑴?
-7銆?1銆?5銆?6銆?8銆?1銆?2銆?3銆?4銆?6銆?7銆?8銆?9銆?1銆?2銆?3銆?6锛堝師鐞嗗浘鏃犺繛绾匡級銆傜Щ妞嶅埌 A733 鏃惰繖浜涜剼鍙嚜鐢卞鐢ㄣ€?
+## J4 排母（FH-00339 / C2685112）贴装错位规则
+
+原理图标注：**ZERO 奇数脚 n → J4 焊盘 n+1；偶数脚 n → J4 焊盘 n−1**（J4 焊盘号与排针号整体错一位，PCB 布线时注意）。
+
+## 未使用的排针脚
+
+7、11、15、16、18、21、22、23、24、26、27、28、29、31、32、33、36（原理图无连线）。移植到 A733 时这些脚可自由复用。
+
+---
+
 ## A733 40-pin 对照（Orange Pi Zero 3W v1.2 官方原理图实测，已定稿）
 
-来源：**香橙派官方原理图** `OPI ZERO 3W V1_2_原理图.pdf` 第 18 页 EXT I/O（CONN ZX20，PH0220-100TF-SM-H9，用户提供的桌面资料），放大逐脚核对；官网 Pin Definition 图有错标（如 38/40 均标 PB7），以原理图为准。
+来源：**香橙派官方原理图** `OPI ZERO 3W V1_2_原理图.pdf` 第 18 页 EXT I/O（CONN ZX20，PH0220-100TF-SM-H9，用户提供的桌面资料），放大逐脚核对；官网 Pin Definition 图有错标（如 38/40 均标 PB7、UART 标在 6/8），以原理图为准。
 电源限制：3.3V 轨 MAX 0.5A（VCC_3V3_EXT）；5V 轨输入 2A / 输出 MAX 0.5A。
 
 ### A733 全 40 脚（原理图 V1.2）
@@ -28,7 +35,7 @@
 | 1 | — | 3.3V Power | | 2 | — | 5V Power |
 | 3 | PB3 | I2C_SDA（I2C0）= EXT_TWI0_SDA | | 4 | — | 5V Power |
 | 5 | PB2 | I2C_SCK（I2C0）= EXT_TWI0_SCK | | 6 | — | GND |
-| 7 | PB4 | GPCLK（PWM0-0）= **I2S0-MCLK** | | 8 | — | UART_TX = CPU-TX（调试口） |
+| 7 | PB4 | GPCLK（PWM0-0）= I2S0-MCLK | | 8 | — | UART_TX = CPU-TX（调试口） |
 | 9 | — | GND | | 10 | — | UART_RX = CPU-RX（调试口） |
 | 11 | PB0 | GPIO | | 12 | PB5 | **PWM/PCM_CLK = I2S0-BCLK**（S-PWM0-0） |
 | 13 | PB1 | GPIO | | 14 | PL2 | S-PWM0-0 / SCPU-TX（arisc 域） |
