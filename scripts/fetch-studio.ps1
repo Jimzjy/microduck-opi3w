@@ -37,6 +37,13 @@ function Get-GitExe {
 }
 $gitExe = Get-GitExe
 
+# 只接受 http(s)：--filter=blob:none 走本地路径/file:// 时 git 会退化成「每个 blob 单独起一个
+# upload-pack 进程」的懒拉取，几百个进程、几分钟也拉不完（实测）。需要本地源就先把别处的
+# 完整克隆当源，或改用 -Dest 指向已有仓库（脚本会走 fetch 分支）。
+if ($Remote -notmatch '^(https?)://') {
+    throw "Remote 必须是 http(s) 地址（当前：$Remote）。本地测试请用 -Dest 指向已有的克隆。"
+}
+
 $gitArgs = @()
 if (-not $NoProxy -and $Proxy) {
     $gitArgs += @('-c', "http.proxy=$Proxy", '-c', "https.proxy=$Proxy")
