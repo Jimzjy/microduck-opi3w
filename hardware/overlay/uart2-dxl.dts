@@ -1,0 +1,33 @@
+// microduck-opi3w / A733 DXL bus UART overlay
+//
+// 用途：把 A733（sun60iw2）的 uart2 开出来，给 Dynamixel HD1910 半双工总线用。
+// 引脚：PB0 = UART2_TX、PB1 = UART2_RX → 40-pin 排针 11（TX）/ 13（RX）。
+//       半双工方向切换由 HAT 上的 U7/U6/U5 + MMBT3906 硬件完成，不占 GPIO，
+//       也不需要内核 RS485 支持，所以这里只做「使能 + 引脚复用」。
+//
+// 依据（厂商 BSP 实证，orangepi-xunlong/linux-orangepi 分支 orange-pi-6.6-sun60iw2）：
+//   arch/arm64/boot/dts/allwinner/sun60i-a733-orangepi-zero3w.dts
+//     uart2_pins_active: pins = "PB0", "PB1"; function = "uart2"; drive-strength = <10>;
+//     &uart2 { pinctrl-names = "default","sleep"; pinctrl-0 = <&uart2_pins_active>; status = "disabled"; };
+//   板级 dts 已经写好了 pinctrl，overlay 只负责把 status 打开，不重复定义 pin mux。
+//
+// 用法（Armbian 系）：
+//   dtc -@ -I dts -O dtb -o uart2-dxl.dtbo uart2-dxl.dts
+//   cp uart2-dxl.dtbo /boot/overlay-user/
+//   # /boot/armbianEnv.txt 里加一行：
+//   #   user_overlays=uart2-dxl
+//   重启后 /dev/ttyS2 出现，属主 root:dialout。
+//
+// 验证：cat /sys/kernel/debug/pinctrl/*/pinmux-pins | grep -i PB0  应显示 uart2
+//       再 `stty -F /dev/ttyS2 1000000 raw -echo -crtscts` + 发一个 ping 字节看总线。
+
+/dts-v1/;
+/plugin/;
+
+// 厂商 BSP 里这块板声明的 compatible 是 "xunlong,orangepi-4-pro"（与文件名里的 zero3w 不一致，
+// 是 BSP 自己的笔误/复用）。overlay 不写 compatible，避免 image 换了 compatible 就失效。
+&uart2 {
+	status = "okay";
+	// 1 Mbaud、半双工由硬件做，用户态（robotd）自己开 termios，不需要内核参数。
+	// 若实测收发反相（PB0 恰好是 RX），不用改这里——把 HAT 侧 11/13 两根线对调即可。
+};

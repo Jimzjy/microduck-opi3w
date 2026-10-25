@@ -53,20 +53,22 @@
 | 37 | PD4 | GPIO（PWM0-4，I2S0-LRCK 网络） | | 38 | PB8 | **PCM_DIN = I2S0-DIN0** |
 | 39 | — | GND | | 40 | PB7 | **PCM_DOUT = I2S0-DOUT0** |
 
-### HAT 所需信号 → A733 映射（结论：位置级完全兼容）
+### HAT 所需信号 → A733 映射（I2C / I2S 位置级兼容；UART 需改两根线）
 
 | HAT 信号 | Zero 3W(RK3566) 现脚 | A733 脚 | 结论 |
 |---|---|---|---|
 | I2C（codec 0x18 + ToF） | 3/5 | 3/5 = TWI0（PB3/PB2） | 同位置；overlay 换 twi0，S-TWI2 在 PL/arisc 域默认不使能则无冲突 |
-| DXL 1M UART | 8/10（uart2 m0，复用调试口） | 8/10 = CPU 调试口（uart0 / ttyS0）；**11/13 另有 uart2（PB0/PB1）可用** | 两条路都通：①8/10 不变，禁 console 把 uart0 让给 DXL（照抄 kissqy）；②跳线用 11→8、13→10 走 uart2，console 可留 |
+| DXL 1M UART | 8（TX）/10（RX）（uart2 m0，复用调试口） | **11（PB0 = UART2_TX）/ 13（PB1 = UART2_RX）** | **定案走 11/13**（用户 2026-10-25 决定）：console 留在 8/10 的 uart0/ttyS0，DXL 走 uart2，两者互不干扰 |
 | I2S BCLK/FS/DIN/DOUT | 12/35/38/40 | 12/35/38/40（I2S0，PB5/PB6/PB8/PB7） | 四线位置完全相同 |
 | codec MCLK 12MHz | 板上 Y1 12MHz 晶振（HAT 自带，非排针） | 同上，不需要主控 MCLK | 无影响；A733 的 7 脚 I2S0-MCLK 留空即可 |
 | 3V3 / 5V | 1、2/4 | 1、2/4 | 注意 A733 5V 输出上限 0.5A、3V3 0.5A——外置 DCDC 供电方案不受影响 |
 
 ### 结论（替代此前基于官网引脚图的悲观判断）
 
-- **HAT 四类信号（I2C / UART / I2S / 电源）与 A733 位置级全部兼容，无需改任何一根 HAT 走线**；官网引脚图的「8/10 无 UART、无 I2S」是错标/简标，以原理图为准。
-- 剩余工作全部在**软件侧**：A733（sun60iw2）内核 overlay——twi0 使能（codec 0x18 + ToF）、UART0 去 console + 1Mbaud（或改用 11/13 的 uart2，保留 console）、I2S0 + codec 驱动（aic3104 dt 节点移植）、按需 pwm。
+- **旧结论作废（2026-10-25 定案）**：DXL 总线不走 8/10，改走 **11/13 的 uart2**，因此 **HAT 侧必须改两处走线**——J4 上「排针 8」「排针 10」两个焊盘与 `GPIO14_UART_TX` / `GPIO15_UART_RX` 断开，改接到「排针 11」（J4 焊盘 12）和「排针 13」（J4 焊盘 14）。原因：HAT 的 8/10 是**焊死在 J4 排母上**的，只跳线不切断等于让 console（uart0）和 DXL（uart2）两个 UART 输出顶在同一个网上。
+- 这样改之后，排针 8/10 在 HAT 上变成悬空，正好可以留给 USB-TTL 接 console 调试。
+- 半双工方向切换全在 HAT 硬件（U7/U6/U5 + MMBT3906），不占 GPIO，也不需要内核 RS485。
+- 剩余工作全部在**软件侧**：A733（sun60iw2）内核 overlay——twi0 使能（codec 0x18 + ToF）、uart2 使能（`hardware/overlay/uart2-dxl.dts`，PB0/PB1）、I2S0 + codec 驱动（aic3104 dt 节点移植）、按需 pwm。
 - 排针 14/16/26/27/28（PL2/PL3/PL4/PL5）挂 arisc/常开域，做 GPIO 备用前先确认主核可控。
 
 ### I2S / UART 在 A733 上能否配出来（厂商内核 BSP 实证，2026-10-25）
@@ -84,10 +86,12 @@
 - 9 个 uart 控制器统一 `allwinner,uart-v100`（uart0@0x2500000 … uart8@0x7081000），都能 overlay 挂 pin 组开启，1 Mbps + DMA 无碍。
 - uart2 的 pin 组是 `pins = "PB0","PB1"`，而 PB0/PB1 在排针 **11/13**（HAT 这两脚目前没接线）。
 - 排针 8/10 是「CPU-TX / CPU-RX 调试口」，即 console 用的 uart0 / ttyS0。
-- ∴ 走 8/10 = 复用 debug UART，要禁 console/getty（kissqy 同款）；想保留 console 就跳线 11→8、13→10 改用 uart2。
-- 仍需上板确认：厂商 dts 的 `uart0_pins_active` 是 `pins = "", ""`（空），Linux 侧 pin 名要查手册 GPIO 复用表，或 `cat /sys/kernel/debug/pinctrl/*/pinmux-pins` 直接读。
+- ∴ 走 8/10 = 复用 debug UART，要禁 console/getty（kissqy 同款）；**本板已定案改走 11/13 的 uart2**（`hardware/overlay/uart2-dxl.dts`，只写一行 `status = "okay"`，pinctrl 板级 dts 里已有），console 留在 8/10。
+- **TX/RX 顺序**：`uart2_pins_active` 里 `pins = "PB0","PB1"`，按 sunxi 惯例（uart1 的 PG6/PG7… 同样先 TX 后 RX）**PB0 = TX → 排针 11、PB1 = RX → 排针 13**。厂商侧旁证：u-boot 的 A733 pinctrl patch 里 `uart0` 默认复用就是 `PB9, PB10`（先 TX 后 RX）。仍列为待实测项，若反了只需对调两根线。
+- 仍需上板确认：厂商 dts 的 `uart0_pins_active` 是 `pins = "", ""`（空），Linux 侧 pin 名要查手册 GPIO 复用表，或 `cat /sys/kernel/debug/pinctrl/*/pinmux-pins` 直接读（走 uart2 的话此项只影响 console，与 DXL 无关）。
 
 ### 残留待办
 
-- [ ] 手册 GPIO 复用表核对 uart0 的两个 pin 名（写 overlay 用）
+- [ ] uart2 的 PB0/PB1 谁是 TX 实测确认（反了对调排针 11/13 两根线即可）
+- [ ] HAT REV B：J4 焊盘 7/9（排针 8/10）断开 UART 网，焊盘 12/14（排针 11/13）接 `GPIO14_UART_TX` / `GPIO15_UART_RX`
 - [ ] 板到手后 gpioinfo / pinmux-pins 实测 altfunc 与本表比对
