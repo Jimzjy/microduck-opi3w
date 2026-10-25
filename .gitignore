@@ -1,4 +1,3 @@
 # 移植无关文件不入库
-firmware/
 *.log
 *.tmp
