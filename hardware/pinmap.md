@@ -8,9 +8,9 @@
 |---|---|---|---|
 | 3V3 | 1 | 3V3 | — |
 | 5V | 2、4 | 5V | 外部 5V 经 HAT U11 螺钉端子上板（板载 DC-DC 已拆） |
-| I2C（codec 0x18 / ToF H1） | 3、5 | GPIO02_I2C_SDA / GPIO03_I2C_SCL | i2c3 m0（`i2c3-pihat.dts`，400kHz，禁 fusb302） |
-| DXL 半双工 UART | 8（TX）、10（RX） | GPIO14_UART_TX / GPIO15_UART_RX | uart2 m0（`REQUIRED_OVERLAY=uart2-m0`，1Mbaud；与 SoC 调试口复用） |
-| I2S 音频 | 12、35、38、40 | GPIO18_PCM_CLK / GPIO19_PCM_FS / GPIO20_PCM_DIN / GPIO21_PCM_DOUT | i2s3_2ch（`aic3104-i2c3.dts`，MCLK 来自板上 Y1 12MHz 晶振，非排针） |
+| I2C（codec 0x18 / ToF H1） | 3、5 | `I2C_SDA` / `I2C_SCL` | i2c3 m0（`i2c3-pihat.dts`，400kHz，禁 fusb302） |
+| DXL 半双工 UART | 11（TX）、13（RX） | `UART2_TX` / `UART2_RX` | uart2（PB0/PB1，见 `hardware/overlay/uart2-dxl.dts`，1Mbaud） |
+| I2S 音频 | 12、35、38、40 | `I2S0_BCLK` / `I2S0_LRCK` / `I2S0_DIN` / `I2S0_DOUT` | i2s0 四线（MCLK 来自板上 Y1 12MHz 晶振，非排针） |
 | GND | 6、9、13、14、20、25、30、34、39 等未接信号脚 | GND | — |
 
 ## J4 排母（FH-00339 / C2685112）贴装错位规则
@@ -65,9 +65,9 @@
 
 ### 结论（替代此前基于官网引脚图的悲观判断）
 
-- **旧结论作废（2026-10-25 定案）**：DXL 总线不走 8/10，改走 **11/13 的 uart2**，因此 **HAT 侧必须改两处走线**——J4 上「排针 8」「排针 10」两个焊盘与 `GPIO14_UART_TX` / `GPIO15_UART_RX` 断开，改接到「排针 11」（J4 焊盘 12）和「排针 13」（J4 焊盘 14）。原因：HAT 的 8/10 是**焊死在 J4 排母上**的，只跳线不切断等于让 console（uart0）和 DXL（uart2）两个 UART 输出顶在同一个网上。
+- **旧结论作废（2026-10-25 定案）**：DXL 总线不走 8/10，改走 **11/13 的 uart2**，因此 **HAT 侧必须改两处走线**——J4 上「排针 8」「排针 10」两个焊盘与 `UART2_TX` / `UART2_RX` 断开，改接到「排针 11」（J4 焊盘 12）和「排针 13」（J4 焊盘 14）。原因：HAT 的 8/10 是**焊死在 J4 排母上**的，只跳线不切断等于让 console（uart0）和 DXL（uart2）两个 UART 输出顶在同一个网上。
 - 这样改之后，排针 8/10 在 HAT 上变成悬空，正好可以留给 USB-TTL 接 console 调试。
-- 半双工方向切换全在 HAT 硬件（U7/U6/U5 + MMBT3906），不占 GPIO，也不需要内核 RS485。
+- 半双工方向切换全在 HAT 硬件（U7/U6 + MMBT3906），不占 GPIO，也不需要内核 RS485。
 - 剩余工作全部在**软件侧**：A733（sun60iw2）内核 overlay——twi0 使能（codec 0x18 + ToF）、uart2 使能（`hardware/overlay/uart2-dxl.dts`，PB0/PB1）、I2S0 + codec 驱动（aic3104 dt 节点移植）、按需 pwm。
 - 排针 14/16/26/27/28（PL2/PL3/PL4/PL5）挂 arisc/常开域，做 GPIO 备用前先确认主核可控。
 
@@ -93,5 +93,5 @@
 ### 残留待办
 
 - [ ] uart2 的 PB0/PB1 谁是 TX 实测确认（反了对调排针 11/13 两根线即可）
-- [ ] HAT REV B：J4 焊盘 7/9（排针 8/10）断开 UART 网，焊盘 12/14（排针 11/13）接 `GPIO14_UART_TX` / `GPIO15_UART_RX`
+- [x] HAT REV B：J4 焊盘 7/9（排针 8/10）断开 UART 网，焊盘 12/14（排针 11/13）接 `UART2_TX` / `UART2_RX`（2026-10-25 已在原理图完成，网表实测通过）
 - [ ] 板到手后 gpioinfo / pinmux-pins 实测 altfunc 与本表比对
