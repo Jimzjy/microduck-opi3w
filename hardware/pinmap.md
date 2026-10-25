@@ -58,7 +58,7 @@
 | HAT 信号 | Zero 3W(RK3566) 现脚 | A733 脚 | 结论 |
 |---|---|---|---|
 | I2C（codec 0x18 + ToF） | 3/5 | 3/5 = TWI0（PB3/PB2） | 同位置；overlay 换 twi0，S-TWI2 在 PL/arisc 域默认不使能则无冲突 |
-| DXL 1M UART | 8/10（uart2 m0，复用调试口） | 8/10 = UART（CPU 调试口） | 同位置、同玩法：照抄 kissqy setup-board.sh 思路，禁 console、UART 让给 DXL，1Mbaud |
+| DXL 1M UART | 8/10（uart2 m0，复用调试口） | 8/10 = CPU 调试口（uart0 / ttyS0）；**11/13 另有 uart2（PB0/PB1）可用** | 两条路都通：①8/10 不变，禁 console 把 uart0 让给 DXL（照抄 kissqy）；②跳线用 11→8、13→10 走 uart2，console 可留 |
 | I2S BCLK/FS/DIN/DOUT | 12/35/38/40 | 12/35/38/40（I2S0，PB5/PB6/PB8/PB7） | 四线位置完全相同 |
 | codec MCLK 12MHz | 板上 Y1 12MHz 晶振（HAT 自带，非排针） | 同上，不需要主控 MCLK | 无影响；A733 的 7 脚 I2S0-MCLK 留空即可 |
 | 3V3 / 5V | 1、2/4 | 1、2/4 | 注意 A733 5V 输出上限 0.5A、3V3 0.5A——外置 DCDC 供电方案不受影响 |
@@ -66,10 +66,28 @@
 ### 结论（替代此前基于官网引脚图的悲观判断）
 
 - **HAT 四类信号（I2C / UART / I2S / 电源）与 A733 位置级全部兼容，无需改任何一根 HAT 走线**；官网引脚图的「8/10 无 UART、无 I2S」是错标/简标，以原理图为准。
-- 剩余工作全部在**软件侧**：A733（sun55i）内核 overlay——twi0 使能（codec 0x18 + ToF）、UART0 去 console + 1Mbaud、I2S0 + codec 驱动（aic3104 dt 节点移植）、按需 pwm。
+- 剩余工作全部在**软件侧**：A733（sun60iw2）内核 overlay——twi0 使能（codec 0x18 + ToF）、UART0 去 console + 1Mbaud（或改用 11/13 的 uart2，保留 console）、I2S0 + codec 驱动（aic3104 dt 节点移植）、按需 pwm。
 - 排针 14/16/26/27/28（PL2/PL3/PL4/PL5）挂 arisc/常开域，做 GPIO 备用前先确认主核可控。
+
+### I2S / UART 在 A733 上能否配出来（厂商内核 BSP 实证，2026-10-25）
+
+来源：`orangepi-xunlong/linux-orangepi` 分支 `orange-pi-6.6-sun60iw2` 的 `arch/arm64/boot/dts/allwinner/sun60i-a733-orangepi-zero3w.dts` + `sun60iw2p1.dtsi`（已下载本地核对）。
+
+**I2S：可配，pin 级已钉死**
+- 板级 dts 的 i2s0 pin 组：`i2s0_pins_a` = **PB4**（i2s0_mclk）、`i2s0_pins_b` = **PB5**（bclk）、`i2s0_pins_c` = **PB6**（lrck）、`i2s0_pins_d` = **PB8**（din0）、`i2s0_pins_e` = **PB7**（dout0）——与排针 7 / 12 / 35 / 38 / 40 完全对上。
+- 控制器 `i2s0_plat@2532000`（`allwinner,sunxi-snd-plat-i2s`）带 tx/rx DMA 与 PLL_AUDIO 时钟，`pinctrl-0` 已把这 5 个 pin 组全挂上，只差 `status = "okay"`。
+- machine 节点 `i2s0_mach`（`allwinner,sunxi-snd-mach`）里的 `soundcard-mach,codec { };` 是**空节点**，就是留给外挂 codec 填 `sound-dai` 的（此前「只能绑板载 AC101」的说法作废）。
+- codec 驱动 `sound/soc/codecs/tlv320aic31xx.c` 在厂商内核树内存在。overlay 三件套即：i2c 上挂 codec 节点、`&i2s0_plat` 置 okay、`&i2s0_mach` 的 codec 子节点指向它。
+- 仍需上板确认：镜像内核有没编 `CONFIG_SND_SOC_TLV320AIC31XX` 与 sunxi sound mach（`zcat /proc/config.gz | grep -i aic31`）。
+
+**UART：可配，两条路都在**
+- 9 个 uart 控制器统一 `allwinner,uart-v100`（uart0@0x2500000 … uart8@0x7081000），都能 overlay 挂 pin 组开启，1 Mbps + DMA 无碍。
+- uart2 的 pin 组是 `pins = "PB0","PB1"`，而 PB0/PB1 在排针 **11/13**（HAT 这两脚目前没接线）。
+- 排针 8/10 是「CPU-TX / CPU-RX 调试口」，即 console 用的 uart0 / ttyS0。
+- ∴ 走 8/10 = 复用 debug UART，要禁 console/getty（kissqy 同款）；想保留 console 就跳线 11→8、13→10 改用 uart2。
+- 仍需上板确认：厂商 dts 的 `uart0_pins_active` 是 `pins = "", ""`（空），Linux 侧 pin 名要查手册 GPIO 复用表，或 `cat /sys/kernel/debug/pinctrl/*/pinmux-pins` 直接读。
 
 ### 残留待办
 
-- [ ] 用户手册核对：I2S0/twi0/uart0 的 sun55i pinctrl 节点名，用于写 overlay（手册 PDF 已在桌面资料）
-- [ ] 板到手后 gpioinfo 实测 altfunc 与本表比对
+- [ ] 手册 GPIO 复用表核对 uart0 的两个 pin 名（写 overlay 用）
+- [ ] 板到手后 gpioinfo / pinmux-pins 实测 altfunc 与本表比对

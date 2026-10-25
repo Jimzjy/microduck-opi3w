@@ -41,7 +41,10 @@
 
 ## 排针重映射对照表
 
-已产出：hardware/pinmap.md（Zero 3W 40-pin → HAT 信号 + A733 官方原理图对照，结论：四类信号位置级全兼容，无需改 HAT 走线；剩余为 sun55i overlay 软件工作）。
+已产出：hardware/pinmap.md（Zero 3W 40-pin → HAT 信号 + A733 官方原理图对照，结论：四类信号位置级全兼容，无需改 HAT 走线；剩余为 sun60iw2 overlay 软件工作）。
 
-A733 侧待补：I2S 控制器引脚、I2C 控制器引脚、1 Mbps 半双工 UART 引脚、5V/GND。
-画板/下单前必须逐根核对。
+A733 侧已核实到引脚与控制器（详见 pinmap.md 末节「I2S / UART 在 A733 上能否配出来」）：
+- I2S0：PB5/PB6/PB8/PB7（= 排针 12/35/38/40），控制器 `i2s0_plat` 的 pinctrl 已配好，只差 `status = "okay"`；`i2s0_mach` 的 codec 子节点为空，供外挂 TLV320AIC3104 填 `sound-dai`。
+- I2C：TWI0（PB3/PB2 = 排针 3/5），厂商 dts 里 `status = "disabled"`，overlay 打开即可。
+- DXL UART：8/10 是 console 口（uart0 / ttyS0），复用需禁 console；或跳线到 11/13 用 uart2（PB0/PB1），保留 console。
+- 平台代号是 **sun60iw2**（不是 sun55i）。
