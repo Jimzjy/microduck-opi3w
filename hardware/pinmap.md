@@ -8,7 +8,7 @@
 |---|---|---|---|
 | 3V3 | 1 | 3V3 | — |
 | 5V | 2、4 | 5V | 外部 5V 经 HAT U11 螺钉端子上板（板载 DC-DC 已拆） |
-| I2C（codec 0x18 / ToF J5） | 3、5 | GPIO02_I2C_SDA / GPIO03_I2C_SCL | i2c3 m0（`i2c3-pihat.dts`，400kHz，禁 fusb302） |
+| I2C（codec 0x18 / ToF H1） | 3、5 | GPIO02_I2C_SDA / GPIO03_I2C_SCL | i2c3 m0（`i2c3-pihat.dts`，400kHz，禁 fusb302） |
 | DXL 半双工 UART | 8（TX）、10（RX） | GPIO14_UART_TX / GPIO15_UART_RX | uart2 m0（`REQUIRED_OVERLAY=uart2-m0`，1Mbaud；与 SoC 调试口复用） |
 | I2S 音频 | 12、35、38、40 | GPIO18_PCM_CLK / GPIO19_PCM_FS / GPIO20_PCM_DIN / GPIO21_PCM_DOUT | i2s3_2ch（`aic3104-i2c3.dts`，MCLK 来自板上 Y1 12MHz 晶振，非排针） |
 | GND | 6、9、13、14、20、25、30、34、39 等未接信号脚 | GND | — |
