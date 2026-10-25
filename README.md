@@ -21,11 +21,11 @@ HAT 以 kissqy 的 HAT-V5 为基础做接口移植（供电外置、UART/I2S/I2C
 
 ## 硬件
 
-- **HAT**：`hardware/eda/HAT_REVA_SCH.eprj2`（EasyEDA Pro）。当前 **REV B**，62 个器件（含图纸框，实贴 61）、187 条导线、34 个网络；
+- **HAT**：`hardware/eda/HAT_REVA_SCH.eprj2`（EasyEDA Pro）。当前 **REV B**，65 个器件（含图纸框，实贴 64）、194 条导线、37 个网络；
   DRC **0 error / 4 warning**（2 条「建议器件标准化」+ 2 条「建议给悬空脚加 NC 标记」，不影响打样）。
-  相对 kissqy 原图净省 25 颗贴片：拆掉板载 5V 降压与理想二极管、外接麦替代板载 MEMS、去掉 ToF Qwiic 座、删冗余阻容与已死的与门。
-- **供电**：外部 5V 由 U11 螺钉端子进入 → F1（1.5A PTC）→ 5V 轨，D1（SMAJ5.0A TVS）钳位；HAT 不再吃舵机电池。
-  舵机电池走独立的 HUB 板（`BATT_IN` 与 `SERVO_VPASS` 都不进 HAT）。
+  相对 kissqy 原图净省 22 颗贴片：拆掉板载 5V 降压与理想二极管、外接麦替代板载 MEMS、去掉 ToF Qwiic 座、删冗余阻容与已死的与门。
+- **供电**：外部 5V 由 U11 螺钉端子进入 → Q2（AO3401A）反接保护 → 两路 2A PTC（F1 给 SoC 与偏置、F2 给功放），D1（SMAJ5.0A TVS）钳位；
+  HAT 不再吃舵机电池。舵机电池走独立的 HUB 板（`BATT_IN` 与 `SERVO_VPASS` 都不进 HAT）。
 - **IMU 板**：沿用 kissqy `imu_to_dxl`（挂 DXL 总线，ID 200），不改。
 - **主控**：Orange Pi Zero 3W 2GB；40-pin 与 Radxa ZERO 3W **位置级兼容**，四类信号（I2C / I2S / UART / SPI）无需改 HAT 走线。
 
