@@ -13,7 +13,7 @@ HAT 以 kissqy 的 HAT-V5 为基础做接口移植（供电外置、UART/I2S/I2C
 | --- | --- | --- | --- |
 | [pollen-robotics/microduck](https://github.com/pollen-robotics/microduck)、[microduck_rl](https://github.com/pollen-robotics/microduck_rl) | 官方运行时（Rust）、强化学习训练、MJCF + STL | 运行时（经 kissqy fork 间接引入）、3D 打印件 | 代码 Apache-2.0；3D 网格 CC BY-NC-SA |
 | [kissqy/Microduck-kissqy](https://github.com/kissqy/Microduck-kissqy) | HAT-V5 原理图、HD-1910 运行时 fork、总线 IMU 板、发布包 | **HAT 硬件基线**（已按本仓精简）+ **固件子模块** | 见 `firmware/` 内 LICENSE；文档/资产沿用上游条款 |
-| [fanhao375/microduck-replica](https://github.com/fanhao375/microduck-replica) | 用官方 HAT 的复刻实践、板载网页中控 Studio、可烧录镜像构建脚本、自制 IMU v2 / wire_hub / POGO 板、大量实测文档 | **Studio**、镜像脚本思路、踩坑记录（引用，不整搬） | 代码/Studio/镜像脚本 Apache-2.0；文档与 3D CC BY-NC-SA |
+| [fanhao375/microduck-replica](https://github.com/fanhao375/microduck-replica) | 用官方 HAT 的复刻实践、板载网页中控 Studio、可烧录镜像构建脚本、自制 IMU v2 / wire_hub / POGO 板、大量实测文档 | **硬件与工程实践主参考**：自制 IMU v2 板、Studio、镜像脚本思路、踩坑与调试记录（引用，不整搬） | 代码/Studio/镜像脚本 Apache-2.0；文档与 3D CC BY-NC-SA |
 
 为什么固件仍然用 kissqy 而不是 replica：replica 的运行时是 kissqy 的 fork，额外补丁主要服务于**它自制的 I²C IMU 板**
 和 UDP 手柄；我们用的是 kissqy 的**总线 IMU（DXL ID 200）**，那套补丁对我们没有收益。详见
@@ -26,7 +26,9 @@ HAT 以 kissqy 的 HAT-V5 为基础做接口移植（供电外置、UART/I2S/I2C
   相对 kissqy 原图净省 22 颗贴片：拆掉板载 5V 降压与理想二极管、外接麦替代板载 MEMS、去掉 ToF Qwiic 座、删冗余阻容与已死的与门。
 - **供电**：外部 5V 由 U11 螺钉端子进入 → Q2（AO3401A）反接保护 → 两路 2A PTC（F1 给 SoC 与偏置、F2 给功放），D1（SMAJ5.0A TVS）钳位；
   HAT 不再吃舵机电池。舵机电池走独立的 HUB 板（`BATT_IN` 与 `SERVO_VPASS` 都不进 HAT）。
-- **IMU 板**：沿用 kissqy `imu_to_dxl`（挂 DXL 总线，ID 200），不改。
+- **IMU 板**：replica 自制 v2（`hardware/eda/imu_to_dxl_1V0A.eprj2`，挂 DXL 总线 ID 200）。
+  电路不改；要注意的是 **J1 是镜像序（1=数据/2=+5V/3=GND）**、J2 才是标准序，接线与固件改动见
+  [hardware/imu-layout.md](hardware/imu-layout.md)。
 - **主控**：Orange Pi Zero 3W 2GB；40-pin 与 Radxa ZERO 3W **位置级兼容**，四类信号（I2C / I2S / UART / SPI）无需改 HAT 走线。
 
 细节：[hardware/hat-layout.md](hardware/hat-layout.md)（网表、BOM、每处改动的理由）、
@@ -41,6 +43,7 @@ docs/
   01-port-plan.md      移植总计划与阶段状态
   02-hat-porting.md    HAT 移植方案与已执行的供电/引脚改动
   03-software-stack.md 软件层：固件 / Studio / 镜像 / 训练，谁在哪、怎么装
+  04-reading-list.md   replica 必读清单（上机前 / 排障时 / 改设计时各看哪几篇）
 hardware/
   eda/                 EasyEDA Pro 工程（HAT 原理图 + IMU 板）
   overlay/             A733 设备树 overlay（uart2-dxl.dts）
