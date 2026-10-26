@@ -21,10 +21,10 @@ HAT 以 kissqy 的 HAT-V5 为基础做接口移植（供电外置、UART/I2S/I2C
 
 ## 硬件
 
-- **HAT**：`hardware/eda/HAT_REVA_SCH.eprj2`（EasyEDA Pro）。当前 **REV B**，65 个器件（含图纸框，实贴 64）、194 条导线、37 个网络；
-  DRC **0 error / 4 warning**（2 条「建议器件标准化」+ 2 条「建议给悬空脚加 NC 标记」，不影响打样）。
-  相对 kissqy 原图净省 22 颗贴片：拆掉板载 5V 降压与理想二极管、外接麦替代板载 MEMS、去掉 ToF Qwiic 座、删冗余阻容与已死的与门。
-- **供电**：外部 5V 由 U11 螺钉端子进入 → Q2（AO3401A）反接保护 → 两路 2A PTC（F1 给 SoC 与偏置、F2 给功放），D1（SMAJ5.0A TVS）钳位；
+- **HAT**：`hardware/eda/HAT_REVA_SCH.eprj2`（EasyEDA Pro）。当前 **REV B**，63 个器件（含图纸框，实贴 62）、192 条导线、35 个网络；
+  DRC **0 error / 3 warning**（「建议器件标准化」+「建议给悬空脚加 NC 标记」，不影响打样）。
+  相对 kissqy 原图净省 24 颗贴片：拆掉板载 5V 降压与理想二极管、外接麦替代板载 MEMS、去掉 ToF Qwiic 座、删冗余阻容与已死的与门、删双路保险丝。
+- **供电**：外部 5V 由 U11 螺钉端子进入 → Q2（AO3401A）反接保护 → `5V` 单一母线，D1（SMAJ5.0A TVS）钳位；
   HAT 不再吃舵机电池。舵机电池走独立的 HUB 板（`BATT_IN` 与 `SERVO_VPASS` 都不进 HAT）。
 - **IMU 板**：replica 自制 v2（`hardware/eda/imu_to_dxl_1V0A.eprj2`，挂 DXL 总线 ID 200）。
   电路不改；要注意的是 **J1 是镜像序（1=数据/2=+5V/3=GND）**、J2 才是标准序，接线与固件改动见
