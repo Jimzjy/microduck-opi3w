@@ -68,6 +68,7 @@
 - **旧结论作废（2026-10-25 定案）**：DXL 总线不走 8/10，改走 **11/13 的 uart2**，因此 **HAT 侧必须改两处走线**——J4 上「排针 8」「排针 10」两个焊盘与 `UART2_TX` / `UART2_RX` 断开，改接到「排针 11」（J4 焊盘 12）和「排针 13」（J4 焊盘 14）。原因：HAT 的 8/10 是**焊死在 J4 排母上**的，只跳线不切断等于让 console（uart0）和 DXL（uart2）两个 UART 输出顶在同一个网上。
 - 这样改之后，排针 8/10 在 HAT 上变成悬空，正好可以留给 USB-TTL 接 console 调试。
 - 半双工方向切换全在 HAT 硬件（U7/U6 + MMBT3906），不占 GPIO，也不需要内核 RS485。
+- **与 kissqy 原版 HAT 的 pin2pin 评估（2026-10-26，用户选择放弃）**：J4 与原版的唯一功能差异就是 DXL 位置（8/10 vs 11/13）；要做到完全 pin2pin 只有一条路——DXL 改用 8/10 上的 **uart0**（PB9/PB10，BSP 实证：bootargs `console=ttyS0` + `earlyprintk sunxi-uart,0x2500000`，U-Boot pinctrl uart0=PB9/PB10；其余 uart1=PG6-9 / uart3=PI1,12 / uart6=PE0,1 / uart7,8=s_uart 均到不了 8/10）。代价：uart0 就是调试口，必须 mask serial-getty@ttyS0 丢掉 console（kissqy 在 Radxa 上同样取舍）；固件口 /dev/ttyS2→/dev/ttyS0；uart0 FIFO 64B / type=2（uart2 是 256B / type=4），1M 无 DMA 需实测。已决定不走此路线。另注意：kissqy 原版把排针 32（J4-31）接地，A733 该脚是 PD1/PWM，我们留空是对的；若将来直接用他的 PCB 插 A733，需确认 PD1 上电态不为高。
 - 剩余工作全部在**软件侧**：A733（sun60iw2）内核 overlay——twi0 使能（codec 0x18 + ToF）、uart2 使能（`hardware/overlay/uart2-dxl.dts`，PB0/PB1）、I2S0 + codec 驱动（aic3104 dt 节点移植）、按需 pwm。
 - 排针 14/16/26/27/28（PL2/PL3/PL4/PL5）挂 arisc/常开域，做 GPIO 备用前先确认主核可控。
 
