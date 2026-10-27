@@ -1,6 +1,6 @@
-# Zero 3W 40-pin → HAT 信号对照（来自 kissqy HAT RevA 原理图实测导出）
+# Zero 3W 40-pin → HAT 信号对照（REV B 定稿）
 
-来源：HAT_REVA_SCH.eprj2 原理图导线网络 + firmware overlay 注释交叉验证。
+来源：`HAT_REVA_SCH.eprj2` 的导线网络 + 厂商 device tree 交叉验证。
 
 ## 已确认的信号（kissqy 实机验证过）
 
@@ -11,7 +11,7 @@
 | I2C（codec 0x18 / ToF H1） | 3、5 | `I2C_SDA` / `I2C_SCL` | i2c3 m0（`i2c3-pihat.dts`，400kHz，禁 fusb302） |
 | DXL 半双工 UART | 11（TX）、13（RX） | `UART2_TX` / `UART2_RX` | uart2（PB0/PB1，见 `hardware/overlay/uart2-dxl.dts`，1Mbaud） |
 | I2S 音频 | 12、35、38、40 | `I2S0_BCLK` / `I2S0_LRCK` / `I2S0_DIN` / `I2S0_DOUT` | i2s0 四线（MCLK 来自板上 Y1 12MHz 晶振，非排针） |
-| GND | 6、9、13、14、20、25、30、34、39 等未接信号脚 | GND | — |
+| GND | 6、9、14、18、20、25、30、34、39 | GND | — |
 
 ## J4 排母（FH-00339 / C2685112）贴装错位规则
 
@@ -19,7 +19,9 @@
 
 ## 未使用的排针脚
 
-7、11、15、16、18、21、22、23、24、26、27、28、29、31、32、33、36（原理图无连线）。移植到 A733 时这些脚可自由复用。
+**7**、15、16、18、21、22、23、24、26、27、28、29、31、32、33、36（HAT 原理图无连线）。
+（7 在 A733 上是 I2S0-MCLK，HAT 的 MCLK 由板上 Y1 12 MHz 晶振提供，所以不需要它。）
+移植到 A733 时这些脚可自由复用；11/13 已用于 DXL，8/10 留给 console。
 
 ---
 
@@ -63,14 +65,21 @@
 | codec MCLK 12MHz | 板上 Y1 12MHz 晶振（HAT 自带，非排针） | 同上，不需要主控 MCLK | 无影响；A733 的 7 脚 I2S0-MCLK 留空即可 |
 | 3V3 / 5V | 1、2/4 | 1、2/4 | 注意 A733 5V 输出上限 0.5A、3V3 0.5A——外置 DCDC 供电方案不受影响 |
 
-### 结论（替代此前基于官网引脚图的悲观判断）
+### 结论
 
-- **旧结论作废（2026-10-25 定案）**：DXL 总线不走 8/10，改走 **11/13 的 uart2**，因此 **HAT 侧必须改两处走线**——J4 上「排针 8」「排针 10」两个焊盘与 `UART2_TX` / `UART2_RX` 断开，改接到「排针 11」（J4 焊盘 12）和「排针 13」（J4 焊盘 14）。原因：HAT 的 8/10 是**焊死在 J4 排母上**的，只跳线不切断等于让 console（uart0）和 DXL（uart2）两个 UART 输出顶在同一个网上。
-- 这样改之后，排针 8/10 在 HAT 上变成悬空，正好可以留给 USB-TTL 接 console 调试。
+- DXL 走 **11/13 的 uart2**，console 留在 8/10。HAT 侧因此改了两处走线：J4 上「排针 8」「排针 10」两个
+  焊盘与 `UART2_TX` / `UART2_RX` 断开，改接「排针 11」（J4-12）与「排针 13」（J4-14）。原因：8/10 是
+  **焊死在 J4 排母上**的，只跳线不切断等于让 console（uart0）和 DXL（uart2）两个 UART 顶在同一个网上。
+- 8/10 在 HAT 上因此空出来，正好接 USB-TTL 看 console。
 - 半双工方向切换全在 HAT 硬件（U7/U6 + MMBT3906），不占 GPIO，也不需要内核 RS485。
-- **与 kissqy 原版 HAT 的 pin2pin 评估（2026-10-26，用户选择放弃）**：J4 与原版的唯一功能差异就是 DXL 位置（8/10 vs 11/13）；要做到完全 pin2pin 只有一条路——DXL 改用 8/10 上的 **uart0**（PB9/PB10，BSP 实证：bootargs `console=ttyS0` + `earlyprintk sunxi-uart,0x2500000`，U-Boot pinctrl uart0=PB9/PB10；其余 uart1=PG6-9 / uart3=PI1,12 / uart6=PE0,1 / uart7,8=s_uart 均到不了 8/10）。代价：uart0 就是调试口，必须 mask serial-getty@ttyS0 丢掉 console（kissqy 在 Radxa 上同样取舍）；固件口 /dev/ttyS2→/dev/ttyS0；uart0 FIFO 64B / type=2（uart2 是 256B / type=4），1M 无 DMA 需实测。已决定不走此路线。另注意：kissqy 原版把排针 32（J4-31）接地，A733 该脚是 PD1/PWM，我们留空是对的；若将来直接用他的 PCB 插 A733，需确认 PD1 上电态不为高。
-- 剩余工作全部在**软件侧**：A733（sun60iw2）内核 overlay——twi0 使能（codec 0x18 + ToF）、uart2 使能（`hardware/overlay/uart2-dxl.dts`，PB0/PB1）、I2S0 + codec 驱动（aic3104 dt 节点移植）、按需 pwm。
+- **不走「DXL 复用 8/10 的 uart0」**（评估过，放弃）：uart0 就是调试口，要 mask `serial-getty@ttyS0`
+  丢掉 console；固件口从 `/dev/ttyS2` 变成 `/dev/ttyS0`；uart0 FIFO 只有 64 B（uart2 是 256 B），
+  1 Mbps 无 DMA 的余量只能靠实测。代价大于改两根线。
+- 若将来直接拿 kissqy 原版 PCB 插 A733：他把排针 32（J4-31）接地，A733 该脚是 PD1/PWM，需确认 PD1
+  上电态不为高；我们这版留空。
 - 排针 14/16/26/27/28（PL2/PL3/PL4/PL5）挂 arisc/常开域，做 GPIO 备用前先确认主核可控。
+- 软件侧还差：twi0 使能（codec 0x18 + ToF）、uart2 使能（`hardware/overlay/uart2-dxl.dts`）、
+  I2S0 + aic31xx 驱动、按需 pwm。
 
 ### I2S / UART 在 A733 上能否配出来（厂商内核 BSP 实证，2026-10-25）
 
@@ -79,13 +88,14 @@
 **I2S：可配，pin 级已钉死**
 - 板级 dts 的 i2s0 pin 组：`i2s0_pins_a` = **PB4**（i2s0_mclk）、`i2s0_pins_b` = **PB5**（bclk）、`i2s0_pins_c` = **PB6**（lrck）、`i2s0_pins_d` = **PB8**（din0）、`i2s0_pins_e` = **PB7**（dout0）——与排针 7 / 12 / 35 / 38 / 40 完全对上。
 - 控制器 `i2s0_plat@2532000`（`allwinner,sunxi-snd-plat-i2s`）带 tx/rx DMA 与 PLL_AUDIO 时钟，`pinctrl-0` 已把这 5 个 pin 组全挂上，只差 `status = "okay"`。
-- machine 节点 `i2s0_mach`（`allwinner,sunxi-snd-mach`）里的 `soundcard-mach,codec { };` 是**空节点**，就是留给外挂 codec 填 `sound-dai` 的（此前「只能绑板载 AC101」的说法作废）。
+- machine 节点 `i2s0_mach`（`allwinner,sunxi-snd-mach`）里的 `soundcard-mach,codec { };` 是**空节点**，
+  就是留给外挂 codec 填 `sound-dai` 的。
 - codec 驱动 `sound/soc/codecs/tlv320aic31xx.c` 在厂商内核树内存在。overlay 三件套即：i2c 上挂 codec 节点、`&i2s0_plat` 置 okay、`&i2s0_mach` 的 codec 子节点指向它。
 - 仍需上板确认：镜像内核有没编 `CONFIG_SND_SOC_TLV320AIC31XX` 与 sunxi sound mach（`zcat /proc/config.gz | grep -i aic31`）。
 
 **UART：可配，两条路都在**
 - 9 个 uart 控制器统一 `allwinner,uart-v100`（uart0@0x2500000 … uart8@0x7081000），都能 overlay 挂 pin 组开启，1 Mbps + DMA 无碍。
-- uart2 的 pin 组是 `pins = "PB0","PB1"`，而 PB0/PB1 在排针 **11/13**（HAT 这两脚目前没接线）。
+- uart2 的 pin 组是 `pins = "PB0","PB1"`，即排针 **11/13**（本项目已把 DXL 接在这里）。
 - 排针 8/10 是「CPU-TX / CPU-RX 调试口」，即 console 用的 uart0 / ttyS0。
 - ∴ 走 8/10 = 复用 debug UART，要禁 console/getty（kissqy 同款）；**本板已定案改走 11/13 的 uart2**（`hardware/overlay/uart2-dxl.dts`，只写一行 `status = "okay"`，pinctrl 板级 dts 里已有），console 留在 8/10。
 - **TX/RX 顺序**：`uart2_pins_active` 里 `pins = "PB0","PB1"`，按 sunxi 惯例（uart1 的 PG6/PG7… 同样先 TX 后 RX）**PB0 = TX → 排针 11、PB1 = RX → 排针 13**。厂商侧旁证：u-boot 的 A733 pinctrl patch 里 `uart0` 默认复用就是 `PB9, PB10`（先 TX 后 RX）。仍列为待实测项，若反了只需对调两根线。

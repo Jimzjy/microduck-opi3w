@@ -5,21 +5,25 @@
 # 前置（一次性）：
 #   rustup stable + rustup target add aarch64-unknown-linux-gnu
 #   apt install gcc-aarch64-linux-gnu        # 链接器
-#   shellcheck（本脚本自检用）
+#   装 shellcheck（脚本末尾会自检 setup-board-a733.sh）
 #
-# 产物：img/payload/runtime-bin/{robotd,robotctl,robotd.toml}
-#   → apply-rootfs.sh --payload img/payload 布进镜像
+# 产物：$IMG/payload/runtime-bin/{robotd,robotctl,robotd.toml}
+#   （$IMG 默认仓库同级的 img/，可用 MICRODUCK_IMG 改）
+#   → apply-rootfs.sh --payload "$IMG/payload" 布进镜像
 #   → 板上首开 setup-board-a733.sh 检测到 payload 后装 /usr/local/bin 并启用 robotd.service
 #
 # 源：microduck-runtime 仓库 opi3w-feetech 分支
-#   （pollen-robotics/microduck daemon-v0.17.9 + cherry-pick 8db8f00 Feetech 后端 + 移植修正 145c068）。
+#   = pollen-robotics/microduck daemon-v0.17.9 + patches/runtime-opi3w-feetech.patch
+#     （Feetech STS 后端、总线 IMU、标定台架）。
 # GLIBC 基线实测 2.39（readelf 符号版本）→ 目标底图 Armbian trixie（glibc 2.41）满足。
 # onnxruntime 由 ort crate 静态链入，板上无需 libonnxruntime.so。
 set -euo pipefail
 
-WS_ROOT=/mnt/c/Users/JC/.dsh/bot/workspace/microduck
-RT="$WS_ROOT/microduck-runtime"
-IMG="$WS_ROOT/img"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# 同级目录放运行时仓与 img/（克隆布局默认如此）；换位置时用环境变量指
+WS_ROOT="$(cd "$REPO/.." && pwd)"
+RT="${MICRODUCK_RUNTIME:-$WS_ROOT/microduck-runtime}"
+IMG="${MICRODUCK_IMG:-$WS_ROOT/img}"
 TARGET=aarch64-unknown-linux-gnu
 
 # rustup 装在 ~/.cargo/bin，非交互 shell（wsl -u root -- bash ...）的 PATH 里没有它。
@@ -55,6 +59,6 @@ cp -f "$RT/target/$TARGET/release/robotctl" "$IMG/payload/runtime-bin/robotctl"
 cp -f "$RT/deploy/robotd.toml"              "$IMG/payload/runtime-bin/robotd.toml"
 
 echo ">> shellcheck setup-board-a733.sh"
-shellcheck "$WS_ROOT/microduck-opi3w/scripts/setup-board-a733.sh"
+shellcheck "$REPO/scripts/setup-board-a733.sh"
 
-echo "done: img/payload/runtime-bin/ ready — apply-rootfs.sh --payload img/payload 布进镜像"
+echo "done: $IMG/payload/runtime-bin/ ready — apply-rootfs.sh --payload \"$IMG/payload\" 布进镜像"

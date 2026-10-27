@@ -8,21 +8,21 @@
 ```
 主控（Orange Pi Zero 3W / A733，Debian 13 用户态）
 ├── robotd  ── 50 Hz 控制环，JSON-RPC over /run/robotd.sock（root:robot）
-├── padd    ── 手柄/IMU 板接入        ┐
-├── btd     ── 蓝牙中枢               ├─ firmware 子模块编出来的二进制
-├── mediad  ── 摄像头/音频/WebRTC     │  装到 /opt/robot/daemon，配置 /etc/robot
-├── configd ── 系统配置（网络等）     │
-└── robotctl── 命令行                 ┘
+└── robotctl── 命令行客户端
         ↑
    Microduck Studio（可选）── 网页中控，127.0.0.1:8000，经同一 socket 说话
 ```
 
-## A. 板载运行时（microduck-runtime，官方 0.17.9 + Feetech 后端）
+官方全家桶里还有 `padd`（手柄）/ `btd`（蓝牙）/ `mediad`（摄像头/WebRTC）/ `configd`（系统配置）。
+**本项目只编 `robotd` 与 `robotctl`**，其余四个暂不部署——手柄、WebRTC 摄像头、系统配置页这些能力
+因此目前不可用；需要时按同样的方法在 `microduck-runtime` 里编出来再加进 payload 即可。
 
-**源**：pollen-robotics/microduck 的 `daemon-v0.17.9` tag，加 cherry-pick 的 Feetech STS 总线后端
-（fanhao375 feetech 分支 8db8f00）+ 移植修正。本地分支 `opi3w-feetech`：
-`5c70899`（Feetech 后端落 0.17.9 之上）+ `145c068`（移植修正）+ `54e26b8`（总线 IMU）。
-**2026-10-27 实测**：cargo check 通过、466 测试全绿、aarch64 release 交叉编译出 robotd/robotctl。
+## A. 板载运行时（官方 0.17.9 + 我们的补丁）
+
+**源**：`pollen-robotics/microduck` 的 `daemon-v0.17.9` tag + [patches/runtime-opi3w-feetech.patch](../patches/README.md)。
+补丁里是三块：Feetech STS 总线后端（`bus_feetech.rs` + `bus_select.rs`）、总线 IMU、标定台架
+（`busStatus` / `busCommand` / `--commissioning`）。
+**实测**：`cargo test` 554 通过 / 0 失败；aarch64 release 交叉编译出 `robotd`（9.6 MB）/ `robotctl`（7.7 MB）。
 
 **`[bus] protocol`**：`dynamixel2`（默认，XL330 + IMU 板 200）或 `feetech-sts`（HD-1910，
 `[bus.feetech] p_scale=0.16` + 15 项 directions + `imu=true`）。
@@ -39,7 +39,7 @@
 **交叉编译**（WSL Debian 13，`scripts/build-runtime.sh`）：
 
 ```bash
-bash scripts/build-runtime.sh          # 测试 → 编译 → ELF 校验 → 布进 img/payload/runtime-bin/
+bash scripts/build-runtime.sh          # 测试 → 编译 → ELF 校验 → 布进 $MICRODUCK_IMG/payload/runtime-bin/
 SKIP_TEST=1 bash scripts/build-runtime.sh   # 跳过测试
 ```
 
@@ -55,15 +55,13 @@ onnxruntime 由 ort crate 静态链入，板上无需 libonnxruntime.so。
 | robotd.service | `/etc/systemd/system/`（enabled） | 同上，setup 脚本生成 |
 | robotd.toml | `/etc/robot/robotd.toml`（已存在不覆盖） | payload 里的 `deploy/robotd.toml` 默认版 |
 
-> 旧路线（kissqy firmware 子模块 `cross-sysroot.sh` + `cargo board --bins` 编全家族二进制）
-> 已废弃作主路径——主控软件按用户决定走 replica/官方 Feetech 运行时；kissqy 子模块仅存档。
-> 以下旧要点仍部分适用：舵机串口 `/dev/ttyS2`（PB0/PB1 = 排针 11/13）由 `uart2-dxl.dts` 打开，
-> 半双工方向由 HAT 的 U6/U7/Q1 硬件自动切，内核侧就是普通 1 Mbps 串口，不需要 RS485 ioctl。
+> 舵机串口是 `/dev/ttyS2`（PB0/PB1 = 排针 11/13），由 `uart2-dxl.dts` 打开；半双工方向由 HAT 上的
+> U6/U7/Q1 硬件自动切换，内核侧就是普通 1 Mbps 串口，不需要 RS485 ioctl。
 
 ## B. Microduck Studio（从 replica 按需拉取）
 
 **是什么**：装在鸭子上、浏览器打开的网页中控（`http://<鸭子 IP>:8000/`）。能看状态、一键卸力、站立/走路、
-配对蓝牙手柄、标定舵机、校准 IMU 方向、把标定写进主程序、首次开机检查、连 WiFi。
+标定舵机、校准 IMU 方向、把标定写进主程序。
 
 **为什么可以直接用**：它是纯 Python（3.13）+ 仓库内钉死版本的 `deps/`（starlette/uvicorn/wsproto/pyserial 等），
 不依赖 RK 硬件；它与主程序之间只走 `/run/robotd.sock` 的 JSON-RPC。
@@ -73,12 +71,11 @@ onnxruntime 由 ort crate 静态链入，板上无需 libonnxruntime.so。
 - **能连上、页面能开**：Studio（replica 35b435d，按接口 v40 写）连 robotd 0.17.9（接口 v44）成功，
   `robot.state` 实时流、`robot.init`、`robot.pose`、`robot.policies`、`robot.health` 都通；
   HTTP 200、无密码模式正常。Python 3.13.5 + 内置 deps 一次跑通，无需装任何包。
-- **三个已知方法缺口**（Studio 启动即报，都是 -32601 unknown method）：
-  1. `robot.busStatus`（电池电压轮询，battery_svc 每秒调）——0.17.9 里数据并进了 `robot.state` 流与 `robot.health`
-  2. `robot.startupSubscribe`（启动步骤进度）——0.17.9 没这个订阅
-  3. `robot.busCommand`（标定页直发总线命令）——0.17.9 收紧为 commissioning 模式，方法没了
-  后果：电池卡片可能不显示、标定页「不知道」。其余页面（站/走/卸力/手柄/模型）预期正常。
-- 上板后逐页点一遍并决定补不补这三个适配（改 Studio 侧往 v44 对齐），是本项剩余工作量。
+- 当时报的三个方法缺口（`robot.busStatus` / `robot.busCommand` / `robot.startupSubscribe`）里，
+  前两个已在运行时补齐，第三个按设计不做——细节与取舍见 [§C.1](#c1-标定台架bc2026-10-27)。
+- 手柄、蓝牙、连 WiFi、首次开机检查这几张卡片依赖我们**没有部署**的守护进程与镜像件
+  （`padd`/`btd`/`configd`/`microduck-netcheck`），所以现在点它们不会生效；运动、状态、标定相关页面不受影响。
+- 上板后逐页点一遍，把实际能用的页面记在这里。
 
 **装法**（脚本 `scripts/fetch-studio.ps1` 负责拉，这里是人做的部分）：
 
@@ -121,7 +118,7 @@ replica 的 `software/image/build-image.sh` 以 **Radxa R1 镜像**为底，换 
 `apply-rootfs.sh`（应用 rootfs 改动到已有 img）+ `setup-board-a733.sh`（板侧 bring-up）+ `capture-payload.sh`（从调好的板子上只读抓 payload）。
 
 **底图已定：Armbian trixie vendor**（`Armbian_26.8.1_Orangepizero3w_trixie_vendor_6.6.98_minimal.img.xz`，
-dl.armbian.com/orangepizero3w/archive/，Debian 13 + vendor 6.6.98 内核，glibc 满足 2.31 基线）。
+dl.armbian.com/orangepizero3w/archive/，Debian 13 + vendor 6.6.98 内核，glibc 2.41 满足我们的 2.39 基线）。
 镜像实测（对下载的 img 直接读的结论，非转述）：
 
 - 分区：单 ext4 p1，起点扇区 65536（32 MiB）；前面裸区是 Allwinner boot0/u-boot。rootfs UUID `932dec6a-307e-4174-8694-c4a1ef18eef4`。
@@ -152,12 +149,13 @@ dl.armbian.com/orangepizero3w/archive/，Debian 13 + vendor 6.6.98 内核，glib
 标准命令：
 
 ```bash
-sudo scripts/apply-rootfs.sh <img> --module snd-soc-tlv320aic31xx.ko --payload img/payload
+sudo scripts/apply-rootfs.sh <base.img> \
+     --module ../img/aic31xx-module/snd-soc-tlv320aic31xx.ko --payload ../img/payload
 ```
 
-**2026-10-27 实测成品**：`img/microduck-opi3w-base.img`（1.74 GiB）——dtbo + user_overlays +
-setup 脚本 + firstboot 服务 + aic31xx.ko + depmod + robotd/robotctl/robotd.toml payload 全部进镜像，
-WSL VHD 路线（qemu-img → wsl --mount --vhd → apply --mount → 转回）跑通，debugfs 离线抽查通过。
+产物里应有：dtbo + `user_overlays` + setup 脚本 + firstboot 服务 + aic31xx.ko + depmod 索引 +
+`robotd`/`robotctl`/`robotd.toml` payload。WSL2 下走 VHD 路线（qemu-img → `wsl --mount --vhd` →
+`apply-rootfs.sh --mount` → 转回），命令见 [05-bringup-runbook.md](05-bringup-runbook.md)。
 
 验收清单：串口 console 可用（排针 8/10）→ 板侧网络可用 → `/dev/ttyS2` 出现并能 1 Mbps 通信 →
 `arecord -l` 看到 codec（前置：aic31xx 内核模块装好）→ `robotd` 起来后 `robotctl status` 有 15 个关节 → Studio 页面能开。
@@ -205,18 +203,16 @@ systemctl start robotd                # 回到运动模式
 ## D. 训练与模型（不并入，按需引用）
 
 - **走路/动作模型**：kissqy 的 `firmware/release-assets/Microduck-Training-Studio-R1.5.27.zip` 与
-  `Microduck-Console-R17-V167.zip`，以及 `microduck-hd1910/packaging/models/`（部署时 `install-files.py` 装到 `/opt/robot/daemon/current/models/`）。
+  `Microduck-Console-R17-V167.zip`，以及 `microduck-hd1910/firmware/packaging/models/`（内容寻址的哈希目录，
+  部署时由同目录的 `install-files.py` 按 `install-files.json` 装到 `/opt/robot/daemon/current/models/`）。
 - **训练工程**：上游 `pollen-robotics/microduck_rl`（MJCF + Isaac/mjlab）。replica 的 `software/training/` 是同一套的改版，
   差异没有大到必须切换，等真要重训再对比。
-- **不装 rknn**：kissqy 的 `duck-detect` 走 RK3588 NPU，A733 用不上；固件里对应 crate 不编进板侧集合即可
-  （`cargo board --bins` 已经不含它）。
+- **不装 rknn**：kissqy 的 `duck-detect` 走 RK3588 NPU，A733 用不上；我们只编 `robotd`/`robotctl`，
+  本来就含不进它。
 
 ## 待办
 
-- [ ] 板子到手后：按 A 节装运行时，改掉 RK 专属脚本与用户名
-- [ ] Studio 上板逐页验证，记录与 kissqy fork 的字段差异
-- [x] 镜像：底图选定（Armbian trixie vendor）+ `scripts/apply-rootfs.sh` 已写（逻辑静态验证，
-      真机 Linux 上跑通一次待板卡阶段）
-- [x] aic31xx 内核模块 out-of-tree 编译 ✅（2026-10-27：`scripts/build-aic31xx-module.sh`，
-      vermagic 实测匹配；三个 headers 包坑见 scripts/README；.ko 待随镜像组装进 img）
+- [ ] 板子到手后：按 [05-bringup-runbook.md](05-bringup-runbook.md) 跑一遍，把结果写回这里
+- [ ] Studio 上板逐页验证，记录哪些卡片可用
 - [ ] 把 `robotd.toml` 里 RK 设备名换成 A733 实际设备
+- [ ] 按需补 `padd` / `btd` / `mediad` / `configd`（手柄、蓝牙、WebRTC 目前没有）

@@ -12,7 +12,8 @@
 # 用法：sudo ./smoke-fake.sh [--keep]   # --keep 不杀 robotd，方便手动 robotctl
 set -euo pipefail
 
-RUNTIME="${RUNTIME:-/mnt/c/Users/JC/.dsh/bot/workspace/microduck/microduck-runtime}"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RUNTIME="${RUNTIME:-$(cd "$REPO/.." && pwd)/microduck-runtime}"
 ORT_DIR="${ORT_DIR:-/root/ort-x64}"
 SOCKET=/tmp/robotd-smoke.sock
 PD=/opt/robot/policies/current

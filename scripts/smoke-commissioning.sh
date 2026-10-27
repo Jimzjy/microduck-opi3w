@@ -10,7 +10,8 @@
 # 用法：bash scripts/smoke-commissioning.sh
 set -euo pipefail
 
-RUNTIME="${RUNTIME:-/mnt/c/Users/JC/.dsh/bot/workspace/microduck/microduck-runtime}"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RUNTIME="${RUNTIME:-$(cd "$REPO/.." && pwd)/microduck-runtime}"
 SOCKET="${SOCKET:-/tmp/robotd-commissioning.sock}"
 LOG="${LOG:-/tmp/robotd-commissioning.log}"
 BIN="$RUNTIME/target/debug"

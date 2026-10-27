@@ -1,7 +1,8 @@
 # replica 必读清单（工程实践主参考）
 
-`fanhao375/microduck-replica` 是本仓的**硬件与工程实践主参考**：它的运行时同样是 kissqy 的分叉，
-但它留下的实机记录、防护设计与采购经验，密度远高于 kissqy，能直接省掉我们大量试错。
+`fanhao375/microduck-replica` 是本仓的**硬件与工程实践主参考**：它留下的实机记录、防护设计与采购经验，
+密度远高于 kissqy，能直接省掉我们大量试错。（它的运行时源码没有公开，我们也不跑它的二进制——
+运行时以自己的官方 0.17.9 基线 + [patches/](../patches/README.md) 为准。）
 
 **只读不搬**：这些文档是 **CC BY-NC-SA 4.0**（非商业 + 相同方式共享）。整篇复制进本仓会让本仓文档
 也被传染，所以这里只放「标题 + 一句话摘要 + 固定 commit 链接」。要细节就点链接，别复制正文。
@@ -46,7 +47,7 @@
 | 文档 | 一句话摘要 | 为什么我们要读 |
 | --- | --- | --- |
 | [软件来源与我们的改动.md](https://github.com/fanhao375/microduck-replica/blob/35b435d7a6361c3480c2d0916ecf79c318710690/docs/软件来源与我们的改动.md) | 它自述运行时来自哪、改了哪些补丁 | 判断「要不要跟它的补丁」的唯一依据 |
-| [官方更新跟踪.md](https://github.com/fanhao375/microduck-replica/blob/35b435d7a6361c3480c2d0916ecf79c318710690/docs/官方更新跟踪.md) | 16.7 KB：官方 0.15.x 到后续版本的变更 | 我们跟 kissqy 分叉，这条线要盯着 |
+| [官方更新跟踪.md](https://github.com/fanhao375/microduck-replica/blob/35b435d7a6361c3480c2d0916ecf79c318710690/docs/官方更新跟踪.md) | 16.7 KB：官方 0.15.x 到后续版本的变更 | 我们跟的是官方主线（0.17.9 + 补丁），升级前看它有没有踩过这条线的坑 |
 | [HD1910-20261023-总线IMU自动识别.md](https://github.com/fanhao375/microduck-replica/blob/35b435d7a6361c3480c2d0916ecf79c318710690/docs/HD1910-20261023-总线IMU自动识别.md) | 总线 IMU 自动识别补丁的来历 | 万一我们要摘这个补丁 |
 | [HD1910-20261013-官方更新与UDP手柄.md](https://github.com/fanhao375/microduck-replica/blob/35b435d7a6361c3480c2d0916ecf79c318710690/docs/HD1910-20261013-官方更新与UDP手柄.md) | 官方版本升级与 UDP 手柄补丁 | 手柄方案对照 |
 | [PROGRESS.md](https://github.com/fanhao375/microduck-replica/blob/35b435d7a6361c3480c2d0916ecf79c318710690/PROGRESS.md) | 18.1 KB：项目进度与阶段结论 | 看它做到哪一步，避免重复劳动 |

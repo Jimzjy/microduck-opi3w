@@ -1,22 +1,21 @@
 # 脚本目录
 
-本仓的两个「工具」脚本 + 板子到手后要写的部署脚本。
-
-## 已有
+复现这条移植链需要的全部脚本：交叉编译运行时、编内核模块、组装镜像、板侧 bring-up、台架冒烟，
+加上改 EDA 工程用的两个工具。
 
 | 文件 | 作用 |
 | --- | --- |
 | `eda-exec.ps1` | 把一段 JS 送进正在运行的 EasyEDA Pro 执行，返回 JSON。改原理图全靠它 |
-| `eda-db-inspect.py` | 只读解析 `.eprj2`（zip 里的 JSON），列文件/结构，用于快速核对工程内容 |
-| `eda-db-content.py` | 从 `.eprj2` 里提取某类对象（器件、网络、导线）的明细 |
+| `eda-db-inspect.py` | 只读解析 `.eprj2`（SQLite 工程库），列工程结构与分支，用于快速核对工程内容 |
+| `eda-db-content.py` | 从 `.eprj2` 里提取某类对象的明细 |
 | `fetch-studio.ps1` | 按固定 commit 稀疏拉取 replica 的 `software/studio`，可选推到板子上 |
 | `setup-board-a733.sh` | A733 板侧 bring-up（在板子上跑）：uart2 overlay + ONNX Runtime + 音频 fail-soft（含 aic31xx 内核模块检查）+ 蓝牙手柄 + 板况报告。对照上游 `setup-board.sh`，去掉了全部 RK3566 专属步骤。用法见脚本头注释 |
-| `apply-rootfs.sh` | 把 overlay dtbo + 板侧脚本 + firstboot 服务装进 Armbian 底图 img，可选 `--module <.ko>`（装进 /lib/modules 并 depmod）、`--payload <目录>`。在**带 /dev/loop 的 Linux**上跑（WSL2 不行）。用法见脚本头注释 |
+| `apply-rootfs.sh` | 把 overlay dtbo + 板侧脚本 + firstboot 服务装进 Armbian 底图 img，可选 `--module <.ko>`（装进 /lib/modules 并 depmod）、`--payload <目录>`。支持 `--mount <挂载点>`（WSL 的 VHD 路线）。用法见脚本头注释 |
 | `build-aic31xx-module.sh` | out-of-tree 交叉编译 `snd-soc-tlv320aic31xx.ko`（A733 音频 codec 驱动，vendor 内核没编）。记录了 headers 包全部手工补丁（fixdep、modpost、utsrelease 回写）。在 WSL Debian（root）跑，用法见脚本头注释 |
 | `aic31xx-build-aids/` | 上面脚本的配套留档：`arm64-tools-Makefile`（headers 缺的 kapi 生成器 Makefile）、`build-modpost-manual2.sh`（手工构建 kbuild modpost，含 devicetable-offsets.h 的 .s→.h 转换） |
-| `build-runtime.sh` | 交叉编译 microduck 运行时 robotd/robotctl（aarch64，源 = microduck-runtime 仓 opi3w-feetech 分支 = 官方 0.17.9 + Feetech 后端）并布进 `img/payload/runtime-bin/`。先跑受影响 crate 测试再出产物，`SKIP_TEST=1` 可跳。GLIBC 基线实测 2.39（底图 trixie glibc 2.41 满足）；onnxruntime 静态链入板上无需装库。**二进制不进 git**，产物在 workspace 的 img/payload/ |
-| `smoke-fake.sh` | 全链路台架冒烟测试（host x86_64，无需真机）：robotd `--fake` + onnxruntime + 测试 fixture 策略，用 robotctl 验 health/init/mode/monitor/quack fail-soft。2026-10-27 实测 5/5 通过（`robot healthy`、50Hz 0 miss、policy loaded）。前置：host 编译 robotd/robotctl + onnxruntime x64 ≥1.23 解到 `$ORT_DIR`（默认 /root/ort-x64）。详见脚本头注释 |
-| `smoke-commissioning.sh` | 标定台架冒烟：`robotd --fake --commissioning` 起来、策略被关掉、控制环在跑、`health` 回话。2026-10-27 实测 3/3 + healthy。前置只需 host 编译 robotd/robotctl（debug） |
+| `build-runtime.sh` | 交叉编译运行时 `robotd`/`robotctl`（aarch64，源 = `microduck-runtime` 仓 `opi3w-feetech` 分支 = 官方 0.17.9 + 我们的补丁）并布进 `$MICRODUCK_IMG/payload/runtime-bin/`（默认仓库同级的 `img/`）。先跑受影响 crate 测试再出产物，`SKIP_TEST=1` 可跳。GLIBC 基线实测 2.39（底图 trixie glibc 2.41 满足）；onnxruntime 静态链入板上无需装库。**二进制不进 git** |
+| `smoke-fake.sh` | 全链路台架冒烟测试（host x86_64，无需真机）：robotd `--fake` + onnxruntime + 测试 fixture 策略，用 robotctl 验 health/init/mode/monitor/quack fail-soft。实测 5/5 通过（`robot healthy`、50Hz 0 miss、policy loaded）。前置：host 编译 robotd/robotctl + onnxruntime x64 ≥1.23 解到 `$ORT_DIR`（默认 /root/ort-x64）。详见脚本头注释 |
+| `smoke-commissioning.sh` | 标定台架冒烟：`robotd --fake --commissioning` 起来、策略被关掉、控制环在跑、`health` 回话。实测 3/3 + healthy。前置只需 host 编译 robotd/robotctl（debug） |
 
 ## overlay 编译与验证（WSL，需要 dtc）
 
@@ -30,22 +29,20 @@ fdtoverlay -i /tmp/stub.dtb -o /tmp/applied.dtb /tmp/uart2-dxl.dtbo
 fdtdump /tmp/applied.dtb | grep -A4 'uart@2502000'   # status 应为 "okay"
 ```
 
-2026-10-27 实测：dtc 1.7.2 编译通过、fdtoverlay 应用后 status disabled→okay。
 overlay 用 target-path 写法，**不依赖基础 dtb 的 `__symbols__`**（厂商 BSP 的 dtb 不带符号也能用）。
 
 ## 镜像组装（底图 Armbian trixie vendor）
 
 ```bash
-sudo scripts/apply-rootfs.sh Armbian_26.8.1_Orangepizero3w_trixie_vendor_6.6.98_minimal.img
+sudo scripts/apply-rootfs.sh <base.img>            # 底图见 docs/05 第 5 步
 ```
 
 WSL2 没有 loop 设备也能跑——走 `--mount` 模式：img 用 `qemu-img convert -O vpc` 转 VHD，
 `wsl --mount --vhd xx.vhd --partition 1` 挂进 WSL，然后
-`sudo scripts/apply-rootfs.sh --mount /mnt/wsl/<挂载点> --module snd-soc-tlv320aic31xx.ko`，
+`sudo scripts/apply-rootfs.sh --mount /mnt/wsl/<挂载点> --module ../img/aic31xx-module/snd-soc-tlv320aic31xx.ko --payload ../img/payload`，
 改完 `wsl --unmount` + `qemu-img convert -O raw` 转回 img 烧卡。
-**2026-10-27 已全链路实测**：上述流程跑通，成品 `microduck-opi3w-base.img`
-（dtbo + user_overlays + setup 脚本 + firstboot 服务 + aic31xx.ko + depmod +
-robotd/robotctl/robotd.toml payload 全部进镜像，debugfs 抽查通过）。
+**已全链路跑通**（WSL2 + VHD 路线）：dtbo + `user_overlays` + setup 脚本 + firstboot 服务 +
+aic31xx.ko + depmod + `robotd`/`robotctl`/`robotd.toml` payload 全部进镜像。
 
 镜像里的运行时是**手工安装**（不走官方 updaterd 签名链）：payload 里若有
 `runtime-bin/robotd`，板上首开 `setup-board-a733.sh` 会装 `/usr/local/bin/robotd`、
@@ -72,9 +69,10 @@ wsl -d Debian -u root -- bash scripts/build-aic31xx-module.sh \
 镜像安装：`sudo scripts/apply-rootfs.sh <img> --module snd-soc-tlv320aic31xx.ko`
 （自动放 `/lib/modules/<kver>/kernel/sound/soc/codecs/` 并 depmod）。
 
-## 计划（板子到手后）
+## 板子到手后
 
-- `build-firmware.sh` — WSL 里一键构建 sysroot + 交叉编译（见 [../docs/03-software-stack.md](../docs/03-software-stack.md) A 节）
+没有待写的脚本了——构建、镜像、bring-up、冒烟都已就位。上板要做的只是按
+[../docs/05-bringup-runbook.md](../docs/05-bringup-runbook.md) 走一遍验收，把结果写回文档。
 
 ## EDA 桥怎么用
 
