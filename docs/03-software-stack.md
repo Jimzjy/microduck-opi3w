@@ -60,9 +60,17 @@ onnxruntime 由 ort crate 静态链入，板上无需 libonnxruntime.so。
 **为什么可以直接用**：它是纯 Python（3.13）+ 仓库内钉死版本的 `deps/`（starlette/uvicorn/wsproto/pyserial 等），
 不依赖 RK 硬件；它与主程序之间只走 `/run/robotd.sock` 的 JSON-RPC。
 
-**接口对得上多少**：方法名基本齐（Studio 调用的 `robot.state/busStatus/busCommand/loadPolicy/policies/do/setMode/...`
-在 kissqy 的 robotd 里都有），但**字段与语义没实测**——Studio 是照着 replica 的 fork 写的，页面个别项可能显示不出来或报错。
-上板后逐页点一遍，缺什么补什么，是本项的主要工作量。
+**接口对得上多少（2026-10-27 已在 host 实测——Studio 直连我们的 robotd --fake）**：
+
+- **能连上、页面能开**：Studio（replica 35b435d，按接口 v40 写）连 robotd 0.17.9（接口 v44）成功，
+  `robot.state` 实时流、`robot.init`、`robot.pose`、`robot.policies`、`robot.health` 都通；
+  HTTP 200、无密码模式正常。Python 3.13.5 + 内置 deps 一次跑通，无需装任何包。
+- **三个已知方法缺口**（Studio 启动即报，都是 -32601 unknown method）：
+  1. `robot.busStatus`（电池电压轮询，battery_svc 每秒调）——0.17.9 里数据并进了 `robot.state` 流与 `robot.health`
+  2. `robot.startupSubscribe`（启动步骤进度）——0.17.9 没这个订阅
+  3. `robot.busCommand`（标定页直发总线命令）——0.17.9 收紧为 commissioning 模式，方法没了
+  后果：电池卡片可能不显示、标定页「不知道」。其余页面（站/走/卸力/手柄/模型）预期正常。
+- 上板后逐页点一遍并决定补不补这三个适配（改 Studio 侧往 v44 对齐），是本项剩余工作量。
 
 **装法**（脚本 `scripts/fetch-studio.ps1` 负责拉，这里是人做的部分）：
 
