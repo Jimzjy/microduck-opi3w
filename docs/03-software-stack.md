@@ -1,6 +1,6 @@
 # 软件层：固件 / Studio / 镜像 / 训练
 
-一句话：**固件用 kissqy 的子模块（自己编 aarch64），Studio 从 replica 按需拉一个目录，镜像我们自己按 A733 做，训练沿用 kissqy 的发布包。**
+一句话：**主控运行时用官方 0.17.9 + Feetech 后端的移植版（自己交叉编译），Studio 从 replica 按需拉一个目录，镜像我们自己按 A733 做，训练沿用 kissqy 的发布包。**
 四层互不拷贝，版本都在 [00-upstreams.md](00-upstreams.md) 里钉死。
 
 ## 全景
@@ -17,40 +17,40 @@
    Microduck Studio（可选）── 网页中控，127.0.0.1:8000，经同一 socket 说话
 ```
 
-## A. 板载运行时（`firmware/` 子模块）
+## A. 板载运行时（microduck-runtime，官方 0.17.9 + Feetech 后端）
 
-**位置**：`firmware/microduck-hd1910/firmware/`（Cargo workspace）。Rust 工具链固定在其 `rust-toolchain.toml`（1.99.0）。
+**源**：pollen-robotics/microduck 的 `daemon-v0.17.9` tag，加 cherry-pick 的 Feetech STS 总线后端
+（fanhao375 feetech 分支 8db8f00）+ 移植修正。本地分支 `opi3w-feetech`：
+`5c70899`（Feetech 后端落 0.17.9 之上）+ `145c068`（移植修正）。
+**2026-10-27 实测**：cargo check 通过、463 测试全绿、aarch64 release 交叉编译出 robotd/robotctl。
 
-**交叉编译**（WSL Debian 13，已验证）：
+**`[bus] protocol`**：`dynamixel2`（默认，XL330 + IMU 板 200）或 `feetech-sts`（HD-1910，
+`[bus.feetech] p_scale=0.16` + 15 项 directions）。feetech 模式无 IMU（`imu_ready=false`，
+防摔策略自动关）、无 missing/adopt 路径（ID 由台架写好）。
+
+**交叉编译**（WSL Debian 13，`scripts/build-runtime.sh`）：
 
 ```bash
-cd firmware/microduck-hd1910/firmware
-DUCK_DEBIAN_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian \
-DUCK_SYSROOT=$HOME/duck-aarch64-sysroot \
-sh scripts/cross-sysroot.sh
-eval "$(sh scripts/cross-sysroot.sh 2>/dev/null | grep ^export)"
-cargo board --bins     # robotd/robotctl/padd/btd/mediad/configd/sounds/pet-detect
+bash scripts/build-runtime.sh          # 测试 → 编译 → ELF 校验 → 布进 img/payload/runtime-bin/
+SKIP_TEST=1 bash scripts/build-runtime.sh   # 跳过测试
 ```
 
-产物最高依赖 GLIBC 2.30，凡是 glibc ≥ 2.31 的 aarch64 系统都能直接跑（A733 的 Debian 13 是 2.41）。
+工具链：rustup stable + `aarch64-unknown-linux-gnu` target + `gcc-aarch64-linux-gnu`。
+产物 GLIBC 基线实测 **2.39**（底图 Armbian trixie 是 glibc 2.41，满足——bookworm 2.36 会拒载）；
+onnxruntime 由 ort crate 静态链入，板上无需 libonnxruntime.so。
 
-**安装布局**（照 `scripts/install.sh`）：
+**安装布局**（台架手工安装，不走官方 updaterd 签名链）：
 
-| 项 | 位置 |
-| --- | --- |
-| 二进制 | `/opt/robot/daemon/current/bin/`（`install.sh` 用软链切版本） |
-| 配置 | `/etc/robot/robotd.toml`、`/etc/robot/feetech-ft5/hd1910-calibration.toml` |
-| 单元 | `/etc/systemd/system/{robotd,padd,btd,mediad,configd}.service` |
-| socket | `/run/robotd.sock`（`User=root`、`Group=robot`，组内可读是 Studio 的前提） |
+| 项 | 位置 | 怎么进去 |
+| --- | --- | --- |
+| robotd / robotctl | `/usr/local/bin/` | payload `runtime-bin/` → 板上首开 setup 脚本安装 |
+| robotd.service | `/etc/systemd/system/`（enabled） | 同上，setup 脚本生成 |
+| robotd.toml | `/etc/robot/robotd.toml`（已存在不覆盖） | payload 里的 `deploy/robotd.toml` 默认版 |
 
-**A733 上必须改的部分**
-
-- `scripts/setup-gstreamer.sh` / `setup-rkaiq.sh` / `setup-npu.sh`：**RK 专属**（rkaiq 是 Rockchip ISP，NPU 走 rknn），A733 上跳过；
-  GStreamer 用 apt 装 1.26 即可，ONNX Runtime 用 aarch64 通用 `.so`。
-- `scripts/install.sh` 的头注释假设「Armbian 26.2.x on Radxa Zero 3」；用户名、硬件型号断言要改，逻辑本身可复用。
-- 舵机串口：kissqy 用 `/dev/ttyS2`（PB0/PB1 = 排针 11/13），由 `hardware/overlay/uart2-dxl.dts` 打开；
-  半双工方向由 HAT 上的 U6/U7/Q1 硬件自动切换，所以内核侧就是一个普通 1 Mbps 串口，**不需要 RS485 ioctl**。
-- `robotd.toml` 里若写死 RK 的传感器/音频设备名，按 A733 的 `arecord -l`、`/sys/class/...` 改。
+> 旧路线（kissqy firmware 子模块 `cross-sysroot.sh` + `cargo board --bins` 编全家族二进制）
+> 已废弃作主路径——主控软件按用户决定走 replica/官方 Feetech 运行时；kissqy 子模块仅存档。
+> 以下旧要点仍部分适用：舵机串口 `/dev/ttyS2`（PB0/PB1 = 排针 11/13）由 `uart2-dxl.dts` 打开，
+> 半双工方向由 HAT 的 U6/U7/Q1 硬件自动切，内核侧就是普通 1 Mbps 串口，不需要 RS485 ioctl。
 
 ## B. Microduck Studio（从 replica 按需拉取）
 
@@ -125,8 +125,8 @@ dl.armbian.com/orangepizero3w/archive/，Debian 13 + vendor 6.6.98 内核，glib
    overlay 安装到 /boot/overlay-user + user_overlays、ONNX Runtime、音频 fail-soft（含 aic31xx 模块缺失检查）、
    蓝牙 UserspaceHID/--weird-ble/--pause-btd-on-pair、板况报告）。镜像里放它，
    首次开机调用，或手工 `sudo ./setup-board-a733.sh`。
-4. 装包：`firmware` 编出的二进制 + `robotd.toml` + 出厂标定模板 + Studio。
-5. 首次开机脚本：起名、认 IMU、连不上 WiFi 就开热点、删掉出厂标定模式标记。
+4. 装包：运行时二进制（`build-runtime.sh` → `img/payload/runtime-bin/{robotd,robotctl,robotd.toml}`）+ aic31xx `.ko`；Studio 和标定模板等上板后再说。
+5. 首次开机脚本：装 payload 里的 robotd 到 `/usr/local/bin` 并 enable 服务、认串口、板况报告。
 
 **用法**（在带 loop 设备的 Linux 上，WSL2 没有 /dev/loop 跑不了）：
 `sudo scripts/apply-rootfs.sh <base.img> [--module <.ko>] [--payload <dir>]` ——脚本自己 `sfdisk` 读分区偏移（不写死 65536）、losetup 挂载、
@@ -136,8 +136,12 @@ dl.armbian.com/orangepizero3w/archive/，Debian 13 + vendor 6.6.98 内核，glib
 标准命令：
 
 ```bash
-sudo scripts/apply-rootfs.sh <img> --module snd-soc-tlv320aic31xx.ko --payload <firmware-payload/>
+sudo scripts/apply-rootfs.sh <img> --module snd-soc-tlv320aic31xx.ko --payload img/payload
 ```
+
+**2026-10-27 实测成品**：`img/microduck-opi3w-base.img`（1.74 GiB）——dtbo + user_overlays +
+setup 脚本 + firstboot 服务 + aic31xx.ko + depmod + robotd/robotctl/robotd.toml payload 全部进镜像，
+WSL VHD 路线（qemu-img → wsl --mount --vhd → apply --mount → 转回）跑通，debugfs 离线抽查通过。
 
 验收清单：串口 console 可用（排针 8/10）→ 板侧网络可用 → `/dev/ttyS2` 出现并能 1 Mbps 通信 →
 `arecord -l` 看到 codec（前置：aic31xx 内核模块装好）→ `robotd` 起来后 `robotctl status` 有 15 个关节 → Studio 页面能开。

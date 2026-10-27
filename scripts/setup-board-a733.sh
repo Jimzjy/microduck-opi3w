@@ -309,7 +309,46 @@ configure_bluetooth() {
     fi
 }
 
-# ── 6. 板况报告（--status 也走这里）─────────────────────────────────────────
+# ── 6. robotd 二进制（payload 里有就装；没有则跳过）─────────────────────────
+# apply-rootfs.sh --payload 把交叉编译产物放在 /opt/robot/payload/runtime-bin/：
+#   robotd, robotctl（aarch64，静态链 onnxruntime，GLIBC≥2.39 → trixie 满足）
+#   robotd.toml（默认配置，装到 /etc/robot/robotd.toml，已存在则不覆盖）
+# 注意：这是台架/dev 用的手工安装，不走官方 updaterd 签名发布链。
+configure_runtime_binaries() {
+    src=/opt/robot/payload/runtime-bin
+    [ -x "$src/robotd" ] || { say "runtime: no payload binary at ${src}/robotd — skip
+  （板上没有 robotd。装法：把交叉编译的 robotd/robotctl 放进 ${src}/ 后重跑本脚本，
+   或按上游 docs/robot/install-dev.md 走官方 provision 流程）"
+        return 0; }
+    groupadd -rf robot 2>/dev/null || true
+    install -m 755 "$src/robotd" /usr/local/bin/robotd
+    if [ -f "$src/robotctl" ]; then
+        install -m 755 "$src/robotctl" /usr/local/bin/robotctl
+    fi
+    if [ -f "$src/robotd.toml" ] && [ ! -f /etc/robot/robotd.toml ]; then
+        mkdir -p /etc/robot
+        install -m 644 "$src/robotd.toml" /etc/robot/robotd.toml
+        say "runtime: wrote /etc/robot/robotd.toml (defaults; edit [bus] before real hardware)"
+    fi
+    cat > /etc/systemd/system/robotd.service <<'UNIT'
+[Unit]
+Description=MicroDuck robot daemon (dev image, hand-installed)
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/robotd
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl is-enabled --quiet robotd.service 2>/dev/null \
+        || systemctl enable robotd.service >/dev/null 2>&1 || true
+    say "runtime: installed robotd/robotctl to /usr/local/bin, robotd.service enabled"
+}
+
+# ── 7. 板况报告（--status 也走这里）─────────────────────────────────────────
 report() {
     say "board status"
 
@@ -390,6 +429,7 @@ configure_onnx
 configure_audio
 configure_tof
 configure_bluetooth
+configure_runtime_binaries
 
 say ""
 report

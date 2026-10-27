@@ -14,6 +14,7 @@
 | `apply-rootfs.sh` | 把 overlay dtbo + 板侧脚本 + firstboot 服务装进 Armbian 底图 img，可选 `--module <.ko>`（装进 /lib/modules 并 depmod）、`--payload <目录>`。在**带 /dev/loop 的 Linux**上跑（WSL2 不行）。用法见脚本头注释 |
 | `build-aic31xx-module.sh` | out-of-tree 交叉编译 `snd-soc-tlv320aic31xx.ko`（A733 音频 codec 驱动，vendor 内核没编）。记录了 headers 包全部手工补丁（fixdep、modpost、utsrelease 回写）。在 WSL Debian（root）跑，用法见脚本头注释 |
 | `aic31xx-build-aids/` | 上面脚本的配套留档：`arm64-tools-Makefile`（headers 缺的 kapi 生成器 Makefile）、`build-modpost-manual2.sh`（手工构建 kbuild modpost，含 devicetable-offsets.h 的 .s→.h 转换） |
+| `build-runtime.sh` | 交叉编译 microduck 运行时 robotd/robotctl（aarch64，源 = microduck-runtime 仓 opi3w-feetech 分支 = 官方 0.17.9 + Feetech 后端）并布进 `img/payload/runtime-bin/`。先跑受影响 crate 测试再出产物，`SKIP_TEST=1` 可跳。GLIBC 基线实测 2.39（底图 trixie glibc 2.41 满足）；onnxruntime 静态链入板上无需装库。**二进制不进 git**，产物在 workspace 的 img/payload/ |
 
 ## overlay 编译与验证（WSL，需要 dtc）
 
@@ -41,7 +42,13 @@ WSL2 没有 loop 设备也能跑——走 `--mount` 模式：img 用 `qemu-img c
 `sudo scripts/apply-rootfs.sh --mount /mnt/wsl/<挂载点> --module snd-soc-tlv320aic31xx.ko`，
 改完 `wsl --unmount` + `qemu-img convert -O raw` 转回 img 烧卡。
 **2026-10-27 已全链路实测**：上述流程跑通，成品 `microduck-opi3w-base.img`
-（dtbo + user_overlays + setup 脚本 + firstboot 服务 + aic31xx.ko + depmod 全部进镜像，debugfs 抽查通过）。
+（dtbo + user_overlays + setup 脚本 + firstboot 服务 + aic31xx.ko + depmod +
+robotd/robotctl/robotd.toml payload 全部进镜像，debugfs 抽查通过）。
+
+镜像里的运行时是**手工安装**（不走官方 updaterd 签名链）：payload 里若有
+`runtime-bin/robotd`，板上首开 `setup-board-a733.sh` 会装 `/usr/local/bin/robotd`、
+`robotctl`，写 `/etc/robot/robotd.toml`（已存在不覆盖）并 enable `robotd.service`。
+换运行时 = 重跑 `build-runtime.sh` + `apply-rootfs.sh --payload` 再刷一次（或板上直接覆盖二进制重跑 setup）。
 
 镜像分区/内核实测数据与验收清单见 [../docs/03-software-stack.md](../docs/03-software-stack.md) C 节。
 已知缺口：Armbian vendor 6.6.98 内核没编 `SND_SOC_TLV320AIC31XX`，音频要响需 out-of-tree
