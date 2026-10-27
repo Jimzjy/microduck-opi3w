@@ -17,7 +17,7 @@ HAT 以 kissqy 的 HAT（板名 HAT-V5，立创工程名 HAT_REVA_SCH，同一�
 | [fanhao375/microduck-replica](https://github.com/fanhao375/microduck-replica) | 用官方 HAT 的复刻实践、板载网页中控 Studio、可烧录镜像构建脚本、自制 IMU v2 / wire_hub / POGO 板、大量实测文档 | **硬件与工程实践主参考**：自制 IMU v2 板（硬件+固件 firmware-1.0.0 都用它）、wire_hub/POGO 板、Studio、镜像脚本思路、踩坑记录（引用，不整搬） | 代码/Studio/镜像脚本 Apache-2.0；文档与 3D CC BY-NC-SA |
 
 固件分工（2026-10-27 定稿）：**主控运行时 = 官方 0.17.9 + 我们移植的 Feetech 后端**
-（源码 `microduck-runtime` 仓 `opi3w-feetech` 分支，463 测试过 + host 全链路冒烟通过）；
+（源码 `microduck-runtime` 仓 `opi3w-feetech` 分支，466 测试过 + host 全链路冒烟通过，飞特总线上也读得到 IMU 板）；
 **IMU 板固件 = replica 的 `firmware-1.0.0.hex`**（板就是 replica 的 v2，Feetech 协议、真机共线实测过）。
 kissqy 子模块不再用于固件，只保留作 HAT 硬件基线和发布包来源。详见 [docs/03-software-stack.md](docs/03-software-stack.md)。
 
@@ -68,7 +68,8 @@ firmware/              git submodule：kissqy/Microduck-kissqy（固定 commit�
 
 | 项 | 状态 |
 | --- | --- |
-| 运行时移植（官方 0.17.9 + Feetech） | ✅ `opi3w-feetech` 分支，463 测试通过；host 端 `--fake` 全链路冒烟 5/5 绿 |
+| 运行时移植（官方 0.17.9 + Feetech） | ✅ `opi3w-feetech` 分支，466 测试通过；host 端 `--fake` 全链路冒烟 5/5 绿 |
+| 飞特总线 IMU（ID 200） | ✅ 代码+测试过（`54e26b8`）：块在 56/15，前 12 字节复用 SflpDecoder，读在 15 颗舵机之后；`imu_ready()` 收敛后转真，策略才接管。上板待验 |
 | aarch64 交叉编译 | ✅ `robotd`（9.3MB）/ `robotctl`（7.7MB）release 产物，GLIBC 符号最高 2.39（trixie 2.41 满足） |
 | HAT 原理图移植与精简 | ✅ 网表/DRC 收敛，REV B 已送厂（见上） |
 | 排针重映射 + overlay | ✅ `uart2-dxl.dts` 编译+fdtoverlay 应用验证；`audio-a733.dts` 对镜像真实 dtb 验证通过 |

@@ -1,0 +1,14 @@
+# Windows 检出会把文本文件写成 CRLF，而这个仓库的脚本/设备树是要在 Linux 上直接跑的：
+# CRLF 的 `set -euo pipefail` 会让 bash 报 "set: pipefail: invalid option name"，
+# 从 WSL 里跑就是这样挂掉的（2026-10-27 踩过）。所以显式钉死 LF。
+* text=auto
+*.sh    text eol=lf
+*.bash  text eol=lf
+*.dts   text eol=lf
+*.dtsi  text eol=lf
+*.dtso  text eol=lf
+*.service text eol=lf
+*.py    text eol=lf
+*.md    text eol=lf
+*.toml  text eol=lf
+.gitattributes text eol=lf

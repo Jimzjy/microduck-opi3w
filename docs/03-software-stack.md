@@ -21,12 +21,20 @@
 
 **源**：pollen-robotics/microduck 的 `daemon-v0.17.9` tag，加 cherry-pick 的 Feetech STS 总线后端
 （fanhao375 feetech 分支 8db8f00）+ 移植修正。本地分支 `opi3w-feetech`：
-`5c70899`（Feetech 后端落 0.17.9 之上）+ `145c068`（移植修正）。
-**2026-10-27 实测**：cargo check 通过、463 测试全绿、aarch64 release 交叉编译出 robotd/robotctl。
+`5c70899`（Feetech 后端落 0.17.9 之上）+ `145c068`（移植修正）+ `54e26b8`（总线 IMU）。
+**2026-10-27 实测**：cargo check 通过、466 测试全绿、aarch64 release 交叉编译出 robotd/robotctl。
 
 **`[bus] protocol`**：`dynamixel2`（默认，XL330 + IMU 板 200）或 `feetech-sts`（HD-1910，
-`[bus.feetech] p_scale=0.16` + 15 项 directions）。feetech 模式无 IMU（`imu_ready=false`，
-防摔策略自动关）、无 missing/adopt 路径（ID 由台架写好）。
+`[bus.feetech] p_scale=0.16` + 15 项 directions + `imu=true`）。
+
+**总线 IMU（feetech-sts，`54e26b8`）**：IMU 板固件同时实现飞特寄存器表，所以同一块板在飞特
+总线上也答 ID 200——同一条 `sync_read` 里顺带读回来，**排在 15 颗舵机之后**（实测：排前面会让
+舵机应答早一个字节、板子的校验和吃掉下一块首字节；中间或末尾可靠）。块在 `56/15`，前 12 字节
+与 Dynamixel 的 `124/12` 完全同格式（gyro i16×3 + SFLP 四元数 xyz fp16，w 由主控算），所以复用
+`SflpDecoder`，`imu_ready()` 在滤波收敛 25 帧后转真——这是策略接管的门槛。`[bus.feetech] imu=false`
+时不读那一块、`imu_ready()` 保持 false（机器人没装 IMU 板也能起、照实报告），不会死等。
+`set_imu_mount` 两个后端都生效（mount 是机身属性），摔倒检测/里程计/被拿起检测随之恢复。
+待上板实测：ttyS2 上 ID 200 是否应答、`firmware/1.0.0` 板子的 sample 计数是否在走。
 
 **交叉编译**（WSL Debian 13，`scripts/build-runtime.sh`）：
 

@@ -17,10 +17,13 @@
 # onnxruntime 由 ort crate 静态链入，板上无需 libonnxruntime.so。
 set -euo pipefail
 
-WS_ROOT=/mnt/c/Users/JC/.dsh/bot/workspace
+WS_ROOT=/mnt/c/Users/JC/.dsh/bot/workspace/microduck
 RT="$WS_ROOT/microduck-runtime"
 IMG="$WS_ROOT/img"
 TARGET=aarch64-unknown-linux-gnu
+
+# rustup 装在 ~/.cargo/bin，非交互 shell（wsl -u root -- bash ...）的 PATH 里没有它。
+export PATH="${HOME}/.cargo/bin:${PATH}"
 
 command -v cargo >/dev/null || { echo "cargo not found — run install-rustup.sh first"; exit 1; }
 command -v aarch64-linux-gnu-gcc >/dev/null || { echo "aarch64-linux-gnu-gcc not found"; exit 1; }
