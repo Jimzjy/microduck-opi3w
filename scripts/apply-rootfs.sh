@@ -33,12 +33,15 @@ set -euo pipefail
 BASE_IMG=""
 PAYLOAD_DIR=""
 MODULE_KO=""
+MOUNT_DIR=""
 
 say() { printf '%s\n' "$*"; }
 die() { say "error: $*"; exit 1; }
 
 usage() {
-	say "usage: sudo $0 <base.img> [--payload <dir>]"
+	say "usage: sudo $0 <base.img> [--module <.ko>] [--payload <dir>]"
+	say "       sudo $0 --mount <已挂载的rootfs目录> [--module <.ko>] [--payload <dir>]"
+	say "（--mount 给没有 loop 设备的环境用：比如 WSL2 里 wsl --mount --vhd 挂进来的分区）"
 	exit 2
 }
 
@@ -54,6 +57,11 @@ while [ $# -gt 0 ]; do
 		MODULE_KO="$2"
 		shift 2
 		;;
+	--mount)
+		[ $# -ge 2 ] || usage
+		MOUNT_DIR="$2"
+		shift 2
+		;;
 	-*) usage ;;
 	*)
 		[ -z "$BASE_IMG" ] || usage
@@ -63,10 +71,10 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
-[ -n "$BASE_IMG" ] || usage
+[ -n "$BASE_IMG" ] || [ -n "$MOUNT_DIR" ] || usage
+[ -z "$BASE_IMG" ] || [ -z "$MOUNT_DIR" ] || die "--mount 和 <base.img> 二选一"
 [ "$(id -u)" = 0 ] || die "needs root"
-[ -f "$BASE_IMG" ] || die "not a file: $BASE_IMG"
-[ "$(command -v losetup)" ] || die "losetup not found (WSL2 默认内核没有 loop 模块，请在真机 Linux 运行)"
+[ -z "$BASE_IMG" ] || [ -f "$BASE_IMG" ] || die "not a file: $BASE_IMG"
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OVERLAY_DIR="$REPO_DIR/hardware/overlay"
@@ -77,23 +85,30 @@ for f in "$OVERLAY_DIR/uart2-dxl.dtbo" "$OVERLAY_DIR/audio-a733.dtbo" "$SETUP_SH
 done
 
 # ── 挂载 ─────────────────────────────────────────────────────────────────────
-# 单分区 ext4，起点 = 扇区 65536 × 512B = 32 MiB（用 fdisk 实测，不写死）
-PART_START=$(sfdisk -d "$BASE_IMG" 2>/dev/null | awk '/start=/{print $4; exit}')
-[ -n "$PART_START" ] || die "cannot find partition start in $BASE_IMG"
-OFFSET=$((PART_START * 512))
-say ">> partition starts at sector $PART_START (offset $OFFSET)"
+if [ -n "$MOUNT_DIR" ]; then
+	[ -d "$MOUNT_DIR/boot" ] || die "$MOUNT_DIR 不像挂载好的 rootfs（没有 /boot）"
+	MNT="$MOUNT_DIR"
+	say ">> using pre-mounted rootfs at $MNT"
+else
+	# 单分区 ext4，起点 = 扇区 65536 × 512B = 32 MiB（用 fdisk 实测，不写死）
+	[ "$(command -v losetup)" ] || die "losetup not found（WSL2 没有 loop，请用 --mount 模式或真机 Linux）"
+	PART_START=$(sfdisk -d "$BASE_IMG" 2>/dev/null | awk '/start=/{print $4; exit}')
+	[ -n "$PART_START" ] || die "cannot find partition start in $BASE_IMG"
+	OFFSET=$((PART_START * 512))
+	say ">> partition starts at sector $PART_START (offset $OFFSET)"
 
-LOOP_DEV=$(losetup --find --show --offset "$OFFSET" "$BASE_IMG")
-MNT=$(mktemp -d)
-cleanup() {
-	umount "$MNT" 2>/dev/null || true
-	losetup -d "$LOOP_DEV" 2>/dev/null || true
-	rmdir "$MNT" 2>/dev/null || true
-}
-trap cleanup EXIT
+	LOOP_DEV=$(losetup --find --show --offset "$OFFSET" "$BASE_IMG")
+	MNT=$(mktemp -d)
+	cleanup() {
+		umount "$MNT" 2>/dev/null || true
+		losetup -d "$LOOP_DEV" 2>/dev/null || true
+		rmdir "$MNT" 2>/dev/null || true
+	}
+	trap cleanup EXIT
 
-mount "$LOOP_DEV" "$MNT"
-say ">> mounted $LOOP_DEV at $MNT"
+	mount "$LOOP_DEV" "$MNT"
+	say ">> mounted $LOOP_DEV at $MNT"
+fi
 
 # ── 1. overlay ───────────────────────────────────────────────────────────────
 mkdir -p "$MNT/boot/overlay-user"
@@ -164,4 +179,8 @@ fi
 # ── 校验回显 ────────────────────────────────────────────────────────────────
 say ">> verify: $(ls "$MNT/boot/overlay-user")"
 say ">> verify: $(grep '^user_overlays=' "$ENV_TXT")"
-say ">> done: $BASE_IMG is ready to flash."
+if [ -n "$BASE_IMG" ]; then
+	say ">> done: $BASE_IMG is ready to flash."
+else
+	say ">> done: mounted rootfs updated（如果是 wsl --mount 的 VHD，记得 wsl --unmount 后转回 img 再烧卡）"
+fi

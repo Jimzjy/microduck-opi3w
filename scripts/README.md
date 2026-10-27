@@ -36,6 +36,13 @@ overlay 用 target-path 写法，**不依赖基础 dtb 的 `__symbols__`**（厂
 sudo scripts/apply-rootfs.sh Armbian_26.8.1_Orangepizero3w_trixie_vendor_6.6.98_minimal.img
 ```
 
+WSL2 没有 loop 设备也能跑——走 `--mount` 模式：img 用 `qemu-img convert -O vpc` 转 VHD，
+`wsl --mount --vhd xx.vhd --partition 1` 挂进 WSL，然后
+`sudo scripts/apply-rootfs.sh --mount /mnt/wsl/<挂载点> --module snd-soc-tlv320aic31xx.ko`，
+改完 `wsl --unmount` + `qemu-img convert -O raw` 转回 img 烧卡。
+**2026-10-27 已全链路实测**：上述流程跑通，成品 `microduck-opi3w-base.img`
+（dtbo + user_overlays + setup 脚本 + firstboot 服务 + aic31xx.ko + depmod 全部进镜像，debugfs 抽查通过）。
+
 镜像分区/内核实测数据与验收清单见 [../docs/03-software-stack.md](../docs/03-software-stack.md) C 节。
 已知缺口：Armbian vendor 6.6.98 内核没编 `SND_SOC_TLV320AIC31XX`，音频要响需 out-of-tree
 编 `snd-soc-tlv320aic31xx.ko`。
