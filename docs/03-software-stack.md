@@ -167,6 +167,41 @@ robotctl 全链路）。2026-10-27 实测 5/5 通过：health → `robot healthy
 `policy loaded mode=walk`、`robot init`/`monitor` 正常、quack 无音频时 fail-soft。
 fixture（lstm.onnx）只验证加载链，真步态模型仍来自 D 节发布包。
 
+### C.1 标定台架（B/C，2026-10-27）
+
+Studio 的标定页要三个 0.17.9 里没有的方法，两个已补、一个按设计不做（运行时 `2b1e43c`）：
+
+| 方法 | 状态 | 说明 |
+|---|---|---|
+| `robot.busStatus` | ✅ 已实现 | 从控制环已发布的快照拼装，**不碰串口**（Studio 10 Hz 轮询不能和控制环抢总线）；不知道的量回 `null` 不回 0 |
+| `robot.busCommand` | ✅ 已实现 | `calibration-status` / `hold-home` / `verify-imu` 三个动作，走异步 dispatch + oneshot，`hold-home` 20 s、`verify-imu` 30 s 超时 |
+| `robot.startupSubscribe` | ❌ 不做 | Studio 见方法缺失即记「不支持」继续；bring-up 状态在 `robot.state` 里已有 |
+
+台架模式是同一个二进制的开关：`robotd --commissioning`（策略关闭、`busStatus.mode` 报
+`commissioning`、允许握手/校零）。Studio 的粗校守卫要求 `phase=="holding"` +
+`torque_state=="all_enabled"` + `hold.max_error_deg<=5`，这三项都来自 `hold-home` 的真实收敛。
+
+标定文件 `bus.feetech.calibration`（默认 `/etc/robot/feetech-ft5/hd1910-calibration.toml`）
+有两方写入，各管一段：
+
+- **Studio 的 root 小助手**（`microduck-helper`）：关节 `zero_raw` / `direction` / `min_rad` /
+  `max_rad` / `calibrated`，以及 `motion_enabled`
+- **robotd**：只写 `imu_mount_quat` 与 `imu_mount_verified` 两个字段，且只有 `verify-imu` 成功时写
+
+robotd 在开总线时读它、重试时重读（小助手可能在等舵机供电时正在写），载入后以内存为准；
+读失败只 warn 不拒启动——标定坏掉的狗仍然得能站起来重新标。
+
+板侧验收（板子到手后照着走）：
+
+```bash
+systemctl stop robotd
+sudo robotd --commissioning          # 或改 drop-in 让 service 带这个参数
+# Studio：连板子 → 标定页 → 摆正 → 校零 → hold-home（应报 ≤5° 误差）→ 低头 15–30° 验 IMU
+sudo cat /etc/robot/feetech-ft5/hd1910-calibration.toml   # 看 imu_mount_verified = true
+systemctl start robotd                # 回到运动模式
+```
+
+
 ## D. 训练与模型（不并入，按需引用）
 
 - **走路/动作模型**：kissqy 的 `firmware/release-assets/Microduck-Training-Studio-R1.5.27.zip` 与

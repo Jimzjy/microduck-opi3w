@@ -68,15 +68,16 @@ firmware/              git submodule：kissqy/Microduck-kissqy（固定 commit�
 
 | 项 | 状态 |
 | --- | --- |
-| 运行时移植（官方 0.17.9 + Feetech） | ✅ `opi3w-feetech` 分支，466 测试通过；host 端 `--fake` 全链路冒烟 5/5 绿 |
+| 运行时移植（官方 0.17.9 + Feetech） | ✅ `opi3w-feetech` 分支，**554 测试通过**；host 端 `--fake` 全链路冒烟 5/5 绿 |
 | 飞特总线 IMU（ID 200） | ✅ 代码+测试过（`54e26b8`）：块在 56/15，前 12 字节复用 SflpDecoder，读在 15 颗舵机之后；`imu_ready()` 收敛后转真，策略才接管。上板待验 |
+| 标定链路（busStatus / busCommand / `--commissioning`） | ✅ `2b1e43c`：`robot.busStatus` 从快照拼装不碰串口、`robot.busCommand` 三动作（calibration-status / hold-home / verify-imu）、标定 TOML 双向写入（小助手写关节、robotd 只写 IMU mount）；`--fake` 台架冒烟 healthy。`robot.startupSubscribe` 不做（Studio 优雅降级） |
 | aarch64 交叉编译 | ✅ `robotd`（9.3MB）/ `robotctl`（7.7MB）release 产物，GLIBC 符号最高 2.39（trixie 2.41 满足） |
 | HAT 原理图移植与精简 | ✅ 网表/DRC 收敛，REV B 已送厂（见上） |
 | 排针重映射 + overlay | ✅ `uart2-dxl.dts` 编译+fdtoverlay 应用验证；`audio-a733.dts` 对镜像真实 dtb 验证通过 |
 | aic31xx codec 内核模块 | ✅ 交叉编译成功（vermagic 匹配 vendor 6.6.98），随镜像布防 |
 | A733 系统镜像 | ✅ 成品 `img/microduck-opi3w-base.img`（Armbian trixie vendor 6.6.98 + dtbo + 脚本 + runtime payload，离线抽查通过；待真机验收） |
 | 板侧依赖（ONNX Runtime、GStreamer） | ⏳ 待板子到手 |
-| Studio 上板 | ✅ host 端实测可连 0.17.9（robot.state/init/pose/policies/health 通；电池卡片/标定页三个 v40 接口缺口已记录），板上待验 |
+| Studio 上板 | ✅ host 端实测可连 0.17.9（robot.state/init/pose/policies/health 通）；三个 v40 接口缺口里 `busStatus`/`busCommand` 已补齐、`startupSubscribe` 按设计不做（见 docs/03 C.1），板上待验 |
 | 装配 / 标定 / 试走 | ⏳ 需实物（PCB/物料/OPi 在途） |
 
 ## 许可
