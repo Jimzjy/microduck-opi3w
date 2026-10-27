@@ -10,7 +10,8 @@
 | `eda-db-inspect.py` | 只读解析 `.eprj2`（zip 里的 JSON），列文件/结构，用于快速核对工程内容 |
 | `eda-db-content.py` | 从 `.eprj2` 里提取某类对象（器件、网络、导线）的明细 |
 | `fetch-studio.ps1` | 按固定 commit 稀疏拉取 replica 的 `software/studio`，可选推到板子上 |
-| `setup-board-a733.sh` | A733 板侧 bring-up（在板子上跑）：uart2 overlay + ONNX Runtime + 音频 fail-soft + 蓝牙手柄 + 板况报告。`hardware/overlay/uart2-dxl.dts` 的移植版，对照上游 `setup-board.sh`，去掉了全部 RK3566 专属步骤。用法见脚本头注释 |
+| `setup-board-a733.sh` | A733 板侧 bring-up（在板子上跑）：uart2 overlay + ONNX Runtime + 音频 fail-soft（含 aic31xx 内核模块检查）+ 蓝牙手柄 + 板况报告。对照上游 `setup-board.sh`，去掉了全部 RK3566 专属步骤。用法见脚本头注释 |
+| `apply-rootfs.sh` | 把 overlay dtbo + 板侧脚本 + firstboot 服务装进 Armbian 底图 img，产出可直接烧录的镜像。在**带 /dev/loop 的 Linux**上跑（WSL2 不行）。用法见脚本头注释 |
 
 ## overlay 编译与验证（WSL，需要 dtc）
 
@@ -27,11 +28,20 @@ fdtdump /tmp/applied.dtb | grep -A4 'uart@2502000'   # status 应为 "okay"
 2026-10-27 实测：dtc 1.7.2 编译通过、fdtoverlay 应用后 status disabled→okay。
 overlay 用 target-path 写法，**不依赖基础 dtb 的 `__symbols__`**（厂商 BSP 的 dtb 不带符号也能用）。
 
+## 镜像组装（底图 Armbian trixie vendor）
+
+```bash
+sudo scripts/apply-rootfs.sh Armbian_26.8.1_Orangepizero3w_trixie_vendor_6.6.98_minimal.img
+```
+
+镜像分区/内核实测数据与验收清单见 [../docs/03-software-stack.md](../docs/03-software-stack.md) C 节。
+已知缺口：Armbian vendor 6.6.98 内核没编 `SND_SOC_TLV320AIC31XX`，音频要响还需 out-of-tree
+编 `snd-soc-tlv320aic31xx.ko`（待办）。
+
 ## 计划（板子到手后）
 
 - `build-firmware.sh` — WSL 里一键构建 sysroot + 交叉编译（见 [../docs/03-software-stack.md](../docs/03-software-stack.md) A 节）
-- 音频 overlay `hardware/overlay/audio-a733.dts` — codec 挂 I2S0+I2C 的节点树，写好后
-  `setup-board-a733.sh` 会自动拾取安装
+- aic31xx 内核模块 out-of-tree 编译（Armbian linux-headers，产 `.ko` 进镜像）
 
 ## EDA 桥怎么用
 

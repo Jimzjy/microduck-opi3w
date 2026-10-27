@@ -102,24 +102,38 @@ sudo systemctl daemon-reload && sudo systemctl enable --now microduck-studio
 
 replica 的 `software/image/build-image.sh` 以 **Radxa R1 镜像**为底，换 Radxa U-Boot + B1 DTB，再把从调好的鸭子上拉的 payload 装进去。
 对 A733 是**整条链不适用**：内核、DTB、U-Boot、overlay 全不同。我们只借它的目录结构：
-`build-image.sh`（拉底图 → 应用 rootfs 改动 → 生成可烧录 img）、`apply-rootfs.sh`（装二进制/配置/服务）、
-`capture-payload.sh`（从调好的板子上只读抓 payload）。
+`apply-rootfs.sh`（应用 rootfs 改动到已有 img）+ `setup-board-a733.sh`（板侧 bring-up）+ `capture-payload.sh`（从调好的板子上只读抓 payload）。
 
-我们的目标是：
+**底图已定：Armbian trixie vendor**（`Armbian_26.8.1_Orangepizero3w_trixie_vendor_6.6.98_minimal.img.xz`，
+dl.armbian.com/orangepizero3w/archive/，Debian 13 + vendor 6.6.98 内核，glibc 满足 2.31 基线）。
+镜像实测（对下载的 img 直接读的结论，非转述）：
 
-1. 底图：Orange Pi 官方 / Armbian 的 A733 镜像（Debian 13 用户态），要求 40-pin 可用、glibc ≥ 2.31。
-2. 叠加：`hardware/overlay/uart2-dxl.dts`（uart2，✅ 已编译+fdtoverlay 回归验证，dtc 1.7.2，
-   target-path 写法不依赖基础 dtb 符号表；验证夹具 `uart2-dxl-applytest.dts`）、
-   i2s0 + TLV320AIC3104 的 codec 节点、TWI0（排针 3/5）。
+- 分区：单 ext4 p1，起点扇区 65536（32 MiB）；前面裸区是 Allwinner boot0/u-boot。rootfs UUID `932dec6a-307e-4174-8694-c4a1ef18eef4`。
+- `/boot/armbianEnv.txt`：`fdtfile=allwinner/sun60i-a733-orangepi-zero3w.dtb`、`overlay_prefix=sun60i-a733`，**没有 `user_overlays` 行（追加即可）**。
+- 内核 config：`CONFIG_SND_SOC_AC101=y`（板载声卡）；**`# CONFIG_SND_SOC_TLV320AIC31XX is not set`**——aic31xx 驱动
+  源码在厂商内核树 `sound/soc/codecs/tlv320aic31xx.c`，但没编进内核。音频要响需 out-of-tree 编
+  `snd-soc-tlv320aic31xx.ko`（Armbian headers + 交叉编译或板内编译，独立工作包）；overlay 已就绪。
+- WiFi/BT：`CONFIG_AIC8800_WLAN_SUPPORT=m`、`CONFIG_AIC8800_BTLPM_SUPPORT=m`（与蓝牙三机制的假设一致）。
+
+1. ~~底图选定~~ ✅ Armbian trixie vendor 6.6.98（上面）。
+2. 叠加 overlay（✅ 全部编译并对镜像真实 dtb 用 `fdtoverlay` 应用验证过）：
+   - `uart2-dxl.dtbo`：uart2 status disabled→okay（target-path `/soc@3000000/uart@2502000`，不依赖符号表）。
+   - `audio-a733.dtbo`：twi0→okay + 新增 `tlv320aic3104@18`；i2s0_plat→okay；i2s0_mach name→`aic3104-hat`
+     且 codec `sound-dai` phandle 被 `__local_fixups__` 正确 fixup（实测 636→新节点、cpu 317→i2s0_plat 原值不动）。
 3. 板侧 bring-up：`scripts/setup-board-a733.sh`（上游 `setup-board.sh` 的 A733 移植：
-   overlay 安装到 /boot/overlay-user + user_overlays、ONNX Runtime、音频 fail-soft、
+   overlay 安装到 /boot/overlay-user + user_overlays、ONNX Runtime、音频 fail-soft（含 aic31xx 模块缺失检查）、
    蓝牙 UserspaceHID/--weird-ble/--pause-btd-on-pair、板况报告）。镜像里放它，
    首次开机调用，或手工 `sudo ./setup-board-a733.sh`。
 4. 装包：`firmware` 编出的二进制 + `robotd.toml` + 出厂标定模板 + Studio。
 5. 首次开机脚本：起名、认 IMU、连不上 WiFi 就开热点、删掉出厂标定模式标记。
 
+**用法**（在带 loop 设备的 Linux 上，WSL2 没有 /dev/loop 跑不了）：
+`sudo scripts/apply-rootfs.sh <base.img>` ——脚本自己 `sfdisk` 读分区偏移（不写死 65536）、losetup 挂载、
+装两个 dtbo 到 `/boot/overlay-user/`、`armbianEnv.txt` 幂等写 `user_overlays=uart2-dxl audio-a733`、
+放 `setup-board-a733.sh` 并生成 `microduck-firstboot.service`（首次开机 oneshot）。`--payload <dir>` 可选装额外产物。
+
 验收清单：串口 console 可用（排针 8/10）→ 板侧网络可用 → `/dev/ttyS2` 出现并能 1 Mbps 通信 →
-`arecord -l` 看到 codec → `robotd` 起来后 `robotctl status` 有 15 个关节 → Studio 页面能开。
+`arecord -l` 看到 codec（前置：aic31xx 内核模块装好）→ `robotd` 起来后 `robotctl status` 有 15 个关节 → Studio 页面能开。
 
 ## D. 训练与模型（不并入，按需引用）
 
@@ -134,5 +148,7 @@ replica 的 `software/image/build-image.sh` 以 **Radxa R1 镜像**为底，换 
 
 - [ ] 板子到手后：按 A 节装运行时，改掉 RK 专属脚本与用户名
 - [ ] Studio 上板逐页验证，记录与 kissqy fork 的字段差异
-- [ ] 镜像：底图选定后写 `scripts/apply-rootfs.sh`（或在板上直接跑 install.sh 再固化）
+- [x] 镜像：底图选定（Armbian trixie vendor）+ `scripts/apply-rootfs.sh` 已写（逻辑静态验证，
+      真机 Linux 上跑通一次待板卡阶段）
+- [ ] aic31xx 内核模块 out-of-tree 编译（Armbian linux-headers + 交叉编译，产 snd-soc-tlv320aic31xx.ko 进镜像）
 - [ ] 把 `robotd.toml` 里 RK 设备名换成 A733 实际设备

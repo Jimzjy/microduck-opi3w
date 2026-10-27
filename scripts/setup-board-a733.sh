@@ -15,10 +15,14 @@
 #   2. overlay：uart2-dxl.dtbo 用 target-path 写法（不依赖基础 dtb 的 __symbols__），
 #      装进 /boot/overlay-user/ 并写 user_overlays=；上游是装进 vendor 内核的 rockchip
 #      overlay 目录并写 overlays=，目录和键都不一样。
-#   3. 音频：上游靠 out-of-tree DKMS 编 aic3x（vendor 内核没编 SND_SOC_AIC3X）。A733 的
-#      6.6 内核主线自带 SND_SOC_TLV320AIC31XX 模块，理论只需 overlay 把 codec 挂上 I2S0 +
-#      I2C。音频 overlay 尚未定稿，本脚本对该层 fail-soft：装 alsa-utils/i2c-tools，发现
-#      邻目录有 audio-a733.dtbo 就装，没有就警告后继续——没音频的板子照常走路。
+#   3. 音频：上游靠 out-of-tree DKMS 编 aic3x（vendor 内核没编 SND_SOC_AIC3X）。实测
+#      Armbian trixie vendor 6.6.98 的 sun60iw2 内核 # CONFIG_SND_SOC_TLV320AIC31XX is
+#      not set（CONFIG_SND_SOC_AC101=y 是板载声卡的）——aic31xx 驱动源码在厂商内核树
+#      sound/soc/codecs/tlv320aic31xx.c 里，但没有编进内核。上板前需 out-of-tree 编出
+#      snd-soc-tlv320aic31xx.ko 一并装入（方案见 docs/03）。音频 overlay 本身已定稿并对
+#      镜像真实 dtb 验证过（twi0+codec+i2s0 节点、phandle fixup 全对）。本脚本对该层
+#      fail-soft：装 alsa-utils/i2c-tools，发现邻目录有 audio-a733.dtbo 就装；内核模块
+#      缺失只警告不阻塞——没音频的板子照常走路。
 #   4. ToF：上游的 udev 规则匹配 RK3566 的 fe5c0000.i2c；A733 上 HAT 的 I2C 挂在哪个 twi
 #      控制器要上板实测才能定。给 DUCK_I2C_KERNELS 环境变量留了口子，没设就警告。
 #   5. 蓝牙：OPi Zero 3W 用 aic8800sd，和上游同样的收发芯片 → 完整保留 UserspaceHID=false、
@@ -165,11 +169,16 @@ configure_onnx() {
 }
 
 # ── 3. 音频：TLV320AIC3104（fail-soft，与上游同一原则）───────────────────────
-# A733 上不需要 DKMS：主线 6.6 有 SND_SOC_TLV320AIC31XX。还差的是把 codec 挂上 I2S0+
-# I2C 的 audio-a733 overlay（docs/03-software-stack.md 记了节点结构），定稿后放进
-# hardware/overlay/ 即被本脚本拾取。
+# 实测 Armbian trixie vendor 6.6.98 内核没有编 SND_SOC_TLV320AIC31XX（头注释 §3），
+# 所以这里除 overlay 外还检查内核模块在不在；缺模块只警告，等 out-of-tree 编译方案落地。
 configure_audio() {
     say "audio: TLV320AIC3104 bring-up (fail-soft)"
+    if ! modinfo snd-soc-tlv320aic31xx >/dev/null 2>&1 \
+        && ! find "/lib/modules/$(uname -r)" -name 'snd-soc-tlv320aic31xx*' 2>/dev/null | grep -q .; then
+        warn "kernel module snd-soc-tlv320aic31xx not found (Armbian vendor kernel has
+  CONFIG_SND_SOC_TLV320AIC31XX unset) — codec will not bind even with the overlay.
+  Out-of-tree module build is tracked in docs/03-software-stack.md."
+    fi
     audio_pkgs="alsa-utils i2c-tools"
     missing=""
     for pkg in $audio_pkgs; do
@@ -192,7 +201,7 @@ configure_audio() {
         ensure_user_overlay_word "$AUDIO_OVERLAY_NAME"
     else
         warn "no ${src_audio} — codec overlay not installed, no sound card yet
-  (the driver is in the kernel; only the overlay is missing. Walking works without it.)"
+  (the codec driver also needs an out-of-tree module; see docs/03. Walking works without it.)"
     fi
 
     # 混音器电平：复用上游的 aic3104-init.sh（pollen 仓库维护，开机轮询声卡后设路由，
