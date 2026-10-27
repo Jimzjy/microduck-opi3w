@@ -146,6 +146,11 @@ WSL VHD 路线（qemu-img → wsl --mount --vhd → apply --mount → 转回）�
 验收清单：串口 console 可用（排针 8/10）→ 板侧网络可用 → `/dev/ttyS2` 出现并能 1 Mbps 通信 →
 `arecord -l` 看到 codec（前置：aic31xx 内核模块装好）→ `robotd` 起来后 `robotctl status` 有 15 个关节 → Studio 页面能开。
 
+**上板前的无真机冒烟**：`scripts/smoke-fake.sh`（host `--fake` + onnxruntime + fixture 策略 +
+robotctl 全链路）。2026-10-27 实测 5/5 通过：health → `robot healthy`、50Hz 控制环 0 missed、
+`policy loaded mode=walk`、`robot init`/`monitor` 正常、quack 无音频时 fail-soft。
+fixture（lstm.onnx）只验证加载链，真步态模型仍来自 D 节发布包。
+
 ## D. 训练与模型（不并入，按需引用）
 
 - **走路/动作模型**：kissqy 的 `firmware/release-assets/Microduck-Training-Studio-R1.5.27.zip` 与

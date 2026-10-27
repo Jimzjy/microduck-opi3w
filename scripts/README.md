@@ -15,6 +15,7 @@
 | `build-aic31xx-module.sh` | out-of-tree 交叉编译 `snd-soc-tlv320aic31xx.ko`（A733 音频 codec 驱动，vendor 内核没编）。记录了 headers 包全部手工补丁（fixdep、modpost、utsrelease 回写）。在 WSL Debian（root）跑，用法见脚本头注释 |
 | `aic31xx-build-aids/` | 上面脚本的配套留档：`arm64-tools-Makefile`（headers 缺的 kapi 生成器 Makefile）、`build-modpost-manual2.sh`（手工构建 kbuild modpost，含 devicetable-offsets.h 的 .s→.h 转换） |
 | `build-runtime.sh` | 交叉编译 microduck 运行时 robotd/robotctl（aarch64，源 = microduck-runtime 仓 opi3w-feetech 分支 = 官方 0.17.9 + Feetech 后端）并布进 `img/payload/runtime-bin/`。先跑受影响 crate 测试再出产物，`SKIP_TEST=1` 可跳。GLIBC 基线实测 2.39（底图 trixie glibc 2.41 满足）；onnxruntime 静态链入板上无需装库。**二进制不进 git**，产物在 workspace 的 img/payload/ |
+| `smoke-fake.sh` | 全链路台架冒烟测试（host x86_64，无需真机）：robotd `--fake` + onnxruntime + 测试 fixture 策略，用 robotctl 验 health/init/mode/monitor/quack fail-soft。2026-10-27 实测 5/5 通过（`robot healthy`、50Hz 0 miss、policy loaded）。前置：host 编译 robotd/robotctl + onnxruntime x64 ≥1.23 解到 `$ORT_DIR`（默认 /root/ort-x64）。详见脚本头注释 |
 
 ## overlay 编译与验证（WSL，需要 dtc）
 
