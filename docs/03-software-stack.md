@@ -108,9 +108,15 @@ replica 的 `software/image/build-image.sh` 以 **Radxa R1 镜像**为底，换 
 我们的目标是：
 
 1. 底图：Orange Pi 官方 / Armbian 的 A733 镜像（Debian 13 用户态），要求 40-pin 可用、glibc ≥ 2.31。
-2. 叠加：`hardware/overlay/uart2-dxl.dts`（uart2）、i2s0 + TLV320AIC3104 的 codec 节点、TWI0（排针 3/5）。
-3. 装包：`firmware` 编出的二进制 + `robotd.toml` + 出厂标定模板 + Studio。
-4. 首次开机脚本：起名、认 IMU、连不上 WiFi 就开热点、删掉出厂标定模式标记。
+2. 叠加：`hardware/overlay/uart2-dxl.dts`（uart2，✅ 已编译+fdtoverlay 回归验证，dtc 1.7.2，
+   target-path 写法不依赖基础 dtb 符号表；验证夹具 `uart2-dxl-applytest.dts`）、
+   i2s0 + TLV320AIC3104 的 codec 节点、TWI0（排针 3/5）。
+3. 板侧 bring-up：`scripts/setup-board-a733.sh`（上游 `setup-board.sh` 的 A733 移植：
+   overlay 安装到 /boot/overlay-user + user_overlays、ONNX Runtime、音频 fail-soft、
+   蓝牙 UserspaceHID/--weird-ble/--pause-btd-on-pair、板况报告）。镜像里放它，
+   首次开机调用，或手工 `sudo ./setup-board-a733.sh`。
+4. 装包：`firmware` 编出的二进制 + `robotd.toml` + 出厂标定模板 + Studio。
+5. 首次开机脚本：起名、认 IMU、连不上 WiFi 就开热点、删掉出厂标定模式标记。
 
 验收清单：串口 console 可用（排针 8/10）→ 板侧网络可用 → `/dev/ttyS2` 出现并能 1 Mbps 通信 →
 `arecord -l` 看到 codec → `robotd` 起来后 `robotctl status` 有 15 个关节 → Studio 页面能开。

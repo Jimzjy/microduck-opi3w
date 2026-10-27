@@ -35,12 +35,13 @@ cargo board --bins   # 已验证：robotd/robotctl/padd/btd/mediad/configd/sound
 验收标准：串口/SSH 可用、40-pin 总线 UART 可配、I2S/I2C 音频可配。
 镜像里的 `setup-gstreamer.sh` / `setup-rkaiq.sh` / `setup-npu.sh` 是 RK 专属，A733 上跳过或用 apt 替代。
 
-### 3. 板侧依赖 ⏳
+### 3. 板侧依赖 ⏳（脚本已备好：[../scripts/setup-board-a733.sh](../scripts/setup-board-a733.sh)）
 
-对照 kissqy 的 `scripts/setup-board.sh` 移植：
+对照 kissqy 的 `scripts/setup-board.sh` 移植（脚本已写好，待上板验证）：
 - ONNX Runtime ≥ 1.23（固件 floor），装 aarch64 .so（通用，无需改）
+- 舵机总线 uart2 overlay：✅ `hardware/overlay/uart2-dxl.dts` 已编译 + fdtoverlay 回归验证
+  （2026-10-27，dtc 1.7.2，target-path 写法不依赖基础 dtb 符号表）
 - GStreamer 1.26（mediad WebRTC 用，apt 装）
-- 舵机总线 UART 引脚与 1 Mbps 配置（A733 设备树 overlay）
 
 ### 4. HAT 移植 ✅（方案见 [02-hat-porting.md](02-hat-porting.md)）
 

@@ -26,8 +26,31 @@
 
 // 厂商 BSP 里这块板声明的 compatible 是 "xunlong,orangepi-4-pro"（与文件名里的 zero3w 不一致，
 // 是 BSP 自己的笔误/复用）。overlay 不写 compatible，避免 image 换了 compatible 就失效。
-&uart2 {
-	status = "okay";
+//
+// 写法说明：用 target-path 而不是 &uart2 标签引用。&uart2 要求基础 dtb 编译时带 -@（有
+// __symbols__ 段）才能被 u-boot 的 fdt apply 解析；厂商 BSP 的 dtb 不带符号，Armbian 换内核
+// 也未必带。target-path 只依赖路径字符串，任何内核都能应用。板级 dts（sun60i-a733-orangepi-
+// zero3w.dts）已经在 &uart2 上写好 pinctrl-0 = <&uart2_pins_active>（PB0/PB1），只是 status
+// = "disabled"，所以这里只改 status，pinctrl 不用动。
+//
+// 节点路径实证：sun60iw2p1.dtsi L842 `soc: soc@3000000`，L1649 `uart2: uart@2502000`。
+//
+// 前提（板级 dts 实证，sun60i-a733-orangepi-zero3w.dts）：
+//   L561 uart2_pins_active: uart2_pins@0 { pins="PB0","PB1"; function="uart2"; drive-strength=<10>; }
+//   L1366 &uart2 { pinctrl-0 = <&uart2_pins_active>; status="disabled"; }
+// 即 pinctrl 已经挂在控制器上，status 打开后驱动 probe 时自动声明引脚——overlay 只需改 status。
+// （Allwinner BSP 的 pin 组节点挂在板级 dts 根上而非 pinctrl 控制器下，组未被 pinctrl-0 引用
+// 时改组属性无效，所以不做「重新挂 pinctrl」的兜底——若未来换的板级 dts 没写 pinctrl-0，
+// 要在镜像构建时给 uart2 节点补，而不是靠 overlay。）
+/ {
+	fragment@0 {
+		target-path = "/soc@3000000/uart@2502000";
+
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
 	// 1 Mbaud、半双工由硬件做，用户态（robotd）自己开 termios，不需要内核参数。
 	// 若实测收发反相（PB0 恰好是 RX），不用改这里——把 HAT 侧 11/13 两根线对调即可。
 };

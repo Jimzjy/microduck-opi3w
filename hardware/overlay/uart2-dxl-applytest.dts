@@ -1,0 +1,21 @@
+// uart2-dxl.dtbo 的回归测试夹具：一个最小 dtb，含与 A733 板级树同路径的 uart2 节点
+// （/soc@3000000/uart@2502000，status=disabled）。用来验证 overlay 能被 fdtoverlay 干净地
+// 应用并把 status 翻成 okay——不依赖真实内核或厂商 dtb。
+//
+// 用法（WSL/WSL dtc 或任意 Linux）：
+//   dtc -@ -I dts -O dtb -o /tmp/uart2-dxl.dtbo uart2-dxl.dts
+//   dtc -q -I dts -O dtb -o /tmp/stub.dtb uart2-dxl-applytest.dts
+//   fdtoverlay -i /tmp/stub.dtb -o /tmp/applied.dtb /tmp/uart2-dxl.dtbo
+//   fdtdump /tmp/applied.dtb | grep -A4 'uart@2502000'   # 应看到 status = "okay"
+// （2026-10-27 实测通过，dtc 1.7.2。）
+
+/dts-v1/;
+/ {
+	soc@3000000 {
+		uart@2502000 {
+			compatible = "allwinner,sun60i-a733-uart";
+			reg = <0x0 0x02502000 0x0 0x400>;
+			status = "disabled";
+		};
+	};
+};
