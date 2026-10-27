@@ -111,8 +111,9 @@ dl.armbian.com/orangepizero3w/archive/，Debian 13 + vendor 6.6.98 内核，glib
 - 分区：单 ext4 p1，起点扇区 65536（32 MiB）；前面裸区是 Allwinner boot0/u-boot。rootfs UUID `932dec6a-307e-4174-8694-c4a1ef18eef4`。
 - `/boot/armbianEnv.txt`：`fdtfile=allwinner/sun60i-a733-orangepi-zero3w.dtb`、`overlay_prefix=sun60i-a733`，**没有 `user_overlays` 行（追加即可）**。
 - 内核 config：`CONFIG_SND_SOC_AC101=y`（板载声卡）；**`# CONFIG_SND_SOC_TLV320AIC31XX is not set`**——aic31xx 驱动
-  源码在厂商内核树 `sound/soc/codecs/tlv320aic31xx.c`，但没编进内核。音频要响需 out-of-tree 编
-  `snd-soc-tlv320aic31xx.ko`（Armbian headers + 交叉编译或板内编译，独立工作包）；overlay 已就绪。
+  源码在厂商内核树 `sound/soc/codecs/tlv320aic31xx.c`，但没编进内核。**已 out-of-tree 交叉编译解决 ✅**：
+  `snd-soc-tlv320aic31xx.ko` vermagic `6.6.98-vendor-sun60iw2` 与目标内核一致（`scripts/build-aic31xx-module.sh`，
+  依赖 REGMAP_I2C/I2C/SND_SOC/SND_SOC_I2C_AND_SPI 全部 =y 内置，模块无硬依赖）；overlay 已就绪。
 - WiFi/BT：`CONFIG_AIC8800_WLAN_SUPPORT=m`、`CONFIG_AIC8800_BTLPM_SUPPORT=m`（与蓝牙三机制的假设一致）。
 
 1. ~~底图选定~~ ✅ Armbian trixie vendor 6.6.98（上面）。
@@ -128,9 +129,15 @@ dl.armbian.com/orangepizero3w/archive/，Debian 13 + vendor 6.6.98 内核，glib
 5. 首次开机脚本：起名、认 IMU、连不上 WiFi 就开热点、删掉出厂标定模式标记。
 
 **用法**（在带 loop 设备的 Linux 上，WSL2 没有 /dev/loop 跑不了）：
-`sudo scripts/apply-rootfs.sh <base.img>` ——脚本自己 `sfdisk` 读分区偏移（不写死 65536）、losetup 挂载、
+`sudo scripts/apply-rootfs.sh <base.img> [--module <.ko>] [--payload <dir>]` ——脚本自己 `sfdisk` 读分区偏移（不写死 65536）、losetup 挂载、
 装两个 dtbo 到 `/boot/overlay-user/`、`armbianEnv.txt` 幂等写 `user_overlays=uart2-dxl audio-a733`、
-放 `setup-board-a733.sh` 并生成 `microduck-firstboot.service`（首次开机 oneshot）。`--payload <dir>` 可选装额外产物。
+放 `setup-board-a733.sh` 并生成 `microduck-firstboot.service`（首次开机 oneshot）；`--module` 装
+内核模块（如 aic31xx 的 .ko，自动落 /lib/modules/<kver>/ 并 depmod）；`--payload` 可选装额外产物。
+标准命令：
+
+```bash
+sudo scripts/apply-rootfs.sh <img> --module snd-soc-tlv320aic31xx.ko --payload <firmware-payload/>
+```
 
 验收清单：串口 console 可用（排针 8/10）→ 板侧网络可用 → `/dev/ttyS2` 出现并能 1 Mbps 通信 →
 `arecord -l` 看到 codec（前置：aic31xx 内核模块装好）→ `robotd` 起来后 `robotctl status` 有 15 个关节 → Studio 页面能开。
@@ -150,5 +157,6 @@ dl.armbian.com/orangepizero3w/archive/，Debian 13 + vendor 6.6.98 内核，glib
 - [ ] Studio 上板逐页验证，记录与 kissqy fork 的字段差异
 - [x] 镜像：底图选定（Armbian trixie vendor）+ `scripts/apply-rootfs.sh` 已写（逻辑静态验证，
       真机 Linux 上跑通一次待板卡阶段）
-- [ ] aic31xx 内核模块 out-of-tree 编译（Armbian linux-headers + 交叉编译，产 snd-soc-tlv320aic31xx.ko 进镜像）
+- [x] aic31xx 内核模块 out-of-tree 编译 ✅（2026-10-27：`scripts/build-aic31xx-module.sh`，
+      vermagic 实测匹配；三个 headers 包坑见 scripts/README；.ko 待随镜像组装进 img）
 - [ ] 把 `robotd.toml` 里 RK 设备名换成 A733 实际设备

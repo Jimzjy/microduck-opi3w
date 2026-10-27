@@ -11,7 +11,9 @@
 | `eda-db-content.py` | 从 `.eprj2` 里提取某类对象（器件、网络、导线）的明细 |
 | `fetch-studio.ps1` | 按固定 commit 稀疏拉取 replica 的 `software/studio`，可选推到板子上 |
 | `setup-board-a733.sh` | A733 板侧 bring-up（在板子上跑）：uart2 overlay + ONNX Runtime + 音频 fail-soft（含 aic31xx 内核模块检查）+ 蓝牙手柄 + 板况报告。对照上游 `setup-board.sh`，去掉了全部 RK3566 专属步骤。用法见脚本头注释 |
-| `apply-rootfs.sh` | 把 overlay dtbo + 板侧脚本 + firstboot 服务装进 Armbian 底图 img，产出可直接烧录的镜像。在**带 /dev/loop 的 Linux**上跑（WSL2 不行）。用法见脚本头注释 |
+| `apply-rootfs.sh` | 把 overlay dtbo + 板侧脚本 + firstboot 服务装进 Armbian 底图 img，可选 `--module <.ko>`（装进 /lib/modules 并 depmod）、`--payload <目录>`。在**带 /dev/loop 的 Linux**上跑（WSL2 不行）。用法见脚本头注释 |
+| `build-aic31xx-module.sh` | out-of-tree 交叉编译 `snd-soc-tlv320aic31xx.ko`（A733 音频 codec 驱动，vendor 内核没编）。记录了 headers 包全部手工补丁（fixdep、modpost、utsrelease 回写）。在 WSL Debian（root）跑，用法见脚本头注释 |
+| `aic31xx-build-aids/` | 上面脚本的配套留档：`arm64-tools-Makefile`（headers 缺的 kapi 生成器 Makefile）、`build-modpost-manual2.sh`（手工构建 kbuild modpost，含 devicetable-offsets.h 的 .s→.h 转换） |
 
 ## overlay 编译与验证（WSL，需要 dtc）
 
@@ -35,13 +37,28 @@ sudo scripts/apply-rootfs.sh Armbian_26.8.1_Orangepizero3w_trixie_vendor_6.6.98_
 ```
 
 镜像分区/内核实测数据与验收清单见 [../docs/03-software-stack.md](../docs/03-software-stack.md) C 节。
-已知缺口：Armbian vendor 6.6.98 内核没编 `SND_SOC_TLV320AIC31XX`，音频要响还需 out-of-tree
-编 `snd-soc-tlv320aic31xx.ko`（待办）。
+已知缺口：Armbian vendor 6.6.98 内核没编 `SND_SOC_TLV320AIC31XX`，音频要响需 out-of-tree
+编 `snd-soc-tlv320aic31xx.ko`。
+
+## aic31xx 模块（2026-10-27 已编出 ✅）
+
+```bash
+wsl -d Debian -u root -- bash scripts/build-aic31xx-module.sh \
+    <linux-headers-vendor-sun60iw2_*.deb> <厂商树 tlv320aic31xx 源码目录>
+```
+
+产物 vermagic 实测 `6.6.98-vendor-sun60iw2 SMP preempt mod_unload aarch64`，与目标内核一致；
+依赖（REGMAP_I2C/I2C/SND_SOC/SND_SOC_I2C_AND_SPI）全部 =y 内置，模块无硬依赖。
+三个坑（脚本里都有对应处理）：①`modules_prepare` 死循环在 resolve_btfids，不跑完，只补 fixdep；
+②modpost 要手工构建（headers 缺）；③prepare 会把 utsrelease 重写成 `6.6.98` 丢 `-vendor-sun60iw2`
+后缀导致板上拒载，编译前强制写回。
+
+镜像安装：`sudo scripts/apply-rootfs.sh <img> --module snd-soc-tlv320aic31xx.ko`
+（自动放 `/lib/modules/<kver>/kernel/sound/soc/codecs/` 并 depmod）。
 
 ## 计划（板子到手后）
 
 - `build-firmware.sh` — WSL 里一键构建 sysroot + 交叉编译（见 [../docs/03-software-stack.md](../docs/03-software-stack.md) A 节）
-- aic31xx 内核模块 out-of-tree 编译（Armbian linux-headers，产 `.ko` 进镜像）
 
 ## EDA 桥怎么用
 

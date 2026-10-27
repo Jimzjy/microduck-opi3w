@@ -15,6 +15,8 @@
 #      并装 microduck-firstboot.service（首次开机自动跑一次）
 #   4. 可选 --payload <目录>：整体拷进 /opt/robot/payload/（固件二进制、robotd.toml、
 #      Studio 等，由 firmware 仓库的 install 布局决定；没有就跳过，板侧手工装）
+#   5. 可选 --module <.ko>：out-of-tree 内核模块装进 /lib/modules/<kver>/kernel/
+#      并跑 depmod（当前只有 snd-soc-tlv320aic31xx.ko，codec 驱动 vendor 内核没编）
 #
 # 不做的事：
 #   - 不动 boot0/u-boot 裸区（Armbian 出厂即 A733 版）
@@ -30,6 +32,7 @@ set -euo pipefail
 
 BASE_IMG=""
 PAYLOAD_DIR=""
+MODULE_KO=""
 
 say() { printf '%s\n' "$*"; }
 die() { say "error: $*"; exit 1; }
@@ -44,6 +47,11 @@ while [ $# -gt 0 ]; do
 	--payload)
 		[ $# -ge 2 ] || usage
 		PAYLOAD_DIR="$2"
+		shift 2
+		;;
+	--module)
+		[ $# -ge 2 ] || usage
+		MODULE_KO="$2"
 		shift 2
 		;;
 	-*) usage ;;
@@ -129,7 +137,21 @@ ln -sfn /etc/systemd/system/microduck-firstboot.service \
 	"$MNT/etc/systemd/system/multi-user.target.wants/microduck-firstboot.service"
 say ">> setup-board-a733.sh + microduck-firstboot.service installed"
 
-# ── 3. 可选 payload ──────────────────────────────────────────────────────────
+# ── 4. 可选内核模块（--module）──────────────────────────────────────────────
+if [ -n "$MODULE_KO" ]; then
+	[ -f "$MODULE_KO" ] || die "module not found: $MODULE_KO"
+	KVER=$(find "$MNT/lib/modules" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | head -1)
+	[ -n "$KVER" ] || die "no kernel modules dir in image"
+	KVER_COUNT=$(find "$MNT/lib/modules" -mindepth 1 -maxdepth 1 -type d | wc -l)
+	[ "$KVER_COUNT" -eq 1 ] || die "multiple kernel versions in /lib/modules, ambiguous target: $KVER_COUNT"
+	mkdir -p "$MNT/lib/modules/$KVER/kernel/sound/soc/codecs"
+	install -m 0644 "$MODULE_KO" \
+		"$MNT/lib/modules/$KVER/kernel/sound/soc/codecs/$(basename "$MODULE_KO")"
+	depmod -b "$MNT" "$KVER"
+	say ">> module installed for $KVER: $(basename "$MODULE_KO")"
+fi
+
+# ── 5. 可选 payload ──────────────────────────────────────────────────────────
 if [ -n "$PAYLOAD_DIR" ]; then
 	[ -d "$PAYLOAD_DIR" ] || die "payload dir not found: $PAYLOAD_DIR"
 	mkdir -p "$MNT/opt/robot/payload"
