@@ -18,18 +18,17 @@ Studio 与训练工程按需拉取，见 [docs/00-upstreams.md](docs/00-upstream
 | [kissqy/Microduck-kissqy](https://github.com/kissqy/Microduck-kissqy) | HAT（板名 HAT-V5 / 工程 HAT_REVA_SCH）、HD-1910 运行时 fork、总线 IMU 板、发布包（步态模型等） | **HAT 硬件基线**（已按本仓精简）+ **发布包**（真步态 ONNX 模型、安装脚本、文档） | 见 `firmware/` 内 LICENSE；文档/资产沿用上游条款 |
 | [fanhao375/microduck-replica](https://github.com/fanhao375/microduck-replica) | 用官方 HAT 的复刻实践、板载网页中控 Studio、可烧录镜像构建脚本、自制 IMU v2 / wire_hub / POGO 板、大量实测文档 | **硬件与工程实践主参考**：自制 IMU v2 板（硬件+固件 `firmware-1.0.0` 都用它）、wire_hub/POGO 板、Studio（固定 commit）、镜像脚本思路、踩坑记录（引用，不整搬） | 代码/Studio/镜像脚本 Apache-2.0；文档与 3D CC BY-NC-SA |
 
-固件分工：**主控运行时 = 官方 0.17.9 + 我们的补丁**（`patches/runtime-opi3w-feetech.patch`，
-554 测试通过 + host 端 `--fake` 全链路冒烟，飞特总线上也读得到 IMU 板）；**IMU 板固件 = replica 的
+固件分工：**主控运行时 = 官方 0.17.9 + 我们的补丁**（`patches/runtime-opi3w-feetech.patch`）；**IMU 板固件 = replica 的
 `firmware-1.0.0`**（板就是 replica 的 v2，贴片与固件同源）。kissqy 子模块不用于固件，只作 HAT 硬件
 基线与发布包来源。详见 [docs/03-software-stack.md](docs/03-software-stack.md)。
 
 ## 硬件
 
-- **HAT**：`hardware/eda/HAT_REVA_SCH.eprj2`（EasyEDA Pro）。
+- **HAT**：`hardware/eda/HAT_REVA_SCH_OPI3W.eprj2`（EasyEDA Pro）。
   相对 kissqy 原图删掉了：板载 5V 降压、旧理想二极管、板载 MEMS 麦（改双外接麦）、ToF 的 Qwiic 座、
-  若干冗余阻容、双路保险丝；另加了反接保护 Q2 与防 USB 倒灌的理想二极管 Q3/Q4。
+  若干冗余阻容。
   逐处理由见 [hardware/hat-layout.md](hardware/hat-layout.md)。
-- **供电**：外部 5V 由 U11 螺钉端子进入 → Q2（AO3401A）反接保护 → Q3/Q4 分立理想二极管（调试时 USB-C
+- **供电**：外部 5V 由螺钉端子进入 → Q2（AO3401A）反接保护 → Q3/Q4 分立理想二极管（调试时 USB-C
   与外部 5V 可同时接，互不倒灌）→ `5V` 单一母线，D1（SMAJ5.0A TVS）钳位；HAT 不吃舵机电池。
   舵机电池走独立的 HUB 板（`BATT_IN` 与 `SERVO_VPASS` 都不进 HAT）。
 - **IMU 板**：replica 自制 v2（`hardware/eda/imu_to_dxl_1V0A.eprj2`，总线 ID 200）。

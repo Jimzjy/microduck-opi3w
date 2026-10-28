@@ -10,7 +10,7 @@
 | `hat-layout.md` | HAT 逐区说明：电源、音频、DXL 总线、ToF、排针；以及每处改动的理由 |
 | `imu-layout.md` | IMU 板：连接器脚序、电源、数据通路、MCU 引脚、固件来源 |
 | `overlay/` | A733 设备树 overlay：`uart2-dxl.dts`（打开 uart2 PB0/PB1 → 排针 11/13）、`audio-a733.dts`（aic31xx 声卡） |
-| `eda/HAT_REVA_SCH.eprj2` | HAT 原理图工程（EasyEDA Pro），REV B，已送厂 |
+| `eda/HAT_REVA_SCH_OPI3W.eprj2` | HAT 原理图工程（EasyEDA Pro），REV B，已送厂 |
 | `eda/imu_to_dxl_1V0A.eprj2` | IMU 板工程（replica v2，未改） |
 | `eda/wire_hub_1V0A.eprj2` | 总线 HUB（电池分配 + 舵机口），replica 衍生 |
 | `eda/POGO_PIN_1V0A.eprj2` | POGO 引脚板（烧录/测试用），replica 衍生 |

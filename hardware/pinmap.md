@@ -1,6 +1,6 @@
 # Zero 3W 40-pin → HAT 信号对照（REV B 定稿）
 
-来源：`HAT_REVA_SCH.eprj2` 的导线网络 + 厂商 device tree 交叉验证。
+来源：`HAT_REVA_SCH_OPI3W.eprj2` 的导线网络 + 厂商 device tree 交叉验证。
 
 ## 已确认的信号（kissqy 实机验证过）
 

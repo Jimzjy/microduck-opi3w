@@ -13,7 +13,7 @@ Studio 标定**。每一步都给出命令和验证方法；没验证过的步�
 | --- | --- | --- |
 | Orange Pi Zero 3W（2 GB） | 1 | 主控，A733（`sun60iw2`） |
 | microSD 卡 | 1 | ≥16 GB，A1/A2 |
-| microduck HAT（REV B） | 1 | `hardware/eda/HAT_REVA_SCH.eprj2`，已送厂 |
+| microduck HAT（REV B） | 1 | `hardware/eda/HAT_REVA_SCH_OPI3W.eprj2`，已送厂 |
 | HD-1910 舵机（飞特 STS 协议） | 15 | 腿部 12 + 头颈 3 |
 | IMU 板（replica v2） | 1 | `hardware/eda/imu_to_dxl_1V0A.eprj2`，总线 ID 200 |
 | 总线 Hub | 1 | `hardware/eda/wire_hub_1V0A.eprj2` |

@@ -1,6 +1,7 @@
-# HAT（板名 HAT-V5，工程 HAT_REVA_SCH）原理图：元件清单与布局
+# HAT（板名 HAT-V5，工程 HAT_REVA_SCH_OPI3W）原理图：元件清单与布局
 
-工程：`hardware/eda/HAT_REVA_SCH.eprj2`（kissqy RevA C1 衍生版；本仓改动：TH1→R35 22Ω、J5→H1、
+工程：`hardware/eda/HAT_REVA_SCH_OPI3W.eprj2`（kissqy RevA C1 衍生版，改名为 `_OPI3W` 以与 kissqy
+原版 `HAT_REVA_SCH` 区分；本仓改动：TH1→R35 22Ω、J5→H1、
 供电改成外部 5V + 反接保护 + 理想二极管、U5 与门及其外围已删，见 ⑤）。当前版本 **REV B**。
 本文按 EDA 导出的网表与元件几何整理，不是目测。
 
