@@ -4,11 +4,11 @@
 # （A733 音频 codec TLV320AIC3104 的驱动；Armbian trixie vendor 6.6.98 内核
 #   实测 # CONFIG_SND_SOC_TLV320AIC31XX is not set，必须自己编模块）
 #
-# ⚠ 本脚本记录的是在 WSL2 Debian（root）里人工执行过的完整流程。其中
+# 在 Linux（root）里跑；WSL 亦可。headers 包有几处手工补丁，本脚本已全部自动化：
 #   多步是对 headers 包裁剪缺失文件的手工补丁，无法一条 make 走完，
 #   所以写成带注释的分步脚本；换内核版本时按注释重对版本号即可。
 #
-# 用法（WSL，root）：
+# 用法（root）：
 #   bash build-aic31xx-module.sh <linux-headers-*.deb> <驱动源码目录> [输出目录]
 #
 # 依赖：

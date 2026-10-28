@@ -5,7 +5,7 @@
 # onnxruntime + 测试 fixture 策略 + robotctl 全链路 IPC。验证的是 0.17.9+Feetech
 # 移植版的配置解析、策略加载、控制环、IPC——板子到手前能测的全部。
 #
-# 前置（WSL Debian，root）：
+# 前置（Debian/Ubuntu 包名）：
 #   1. rustup stable（scripts 仓外，img/install-rustup.sh）+ cargo build --release -p robotd -p robotctl
 #   2. onnxruntime x64 ≥1.23 解到 $ORT_DIR（默认 /root/ort-x64，含 lib/libonnxruntime.so）
 #      https://github.com/microsoft/onnxruntime/releases/download/v1.28.0/onnxruntime-linux-x64-1.28.0.tgz

@@ -36,7 +36,7 @@
 `set_imu_mount` 两个后端都生效（mount 是机身属性），摔倒检测/里程计/被拿起检测随之恢复。
 待上板实测：ttyS2 上 ID 200 是否应答、`firmware/1.0.0` 板子的 sample 计数是否在走。
 
-**交叉编译**（WSL Debian 13，`scripts/build-runtime.sh`）：
+**交叉编译**（任意 Linux 主机，`scripts/build-runtime.sh`；我们是在 Windows+WSL2 Debian 13 上跑的）：
 
 ```bash
 bash scripts/build-runtime.sh          # 测试 → 编译 → ELF 校验 → 布进 $MICRODUCK_IMG/payload/runtime-bin/

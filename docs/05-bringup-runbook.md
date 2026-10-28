@@ -20,8 +20,19 @@ Studio 标定**。每一步都给出命令和验证方法；没验证过的步�
 | USB-TTL 串口线 | 1 | 3.3 V 电平，接 console（排针 8/10） |
 | 5 V / 3 A 电源模块 | 1 | 同步整流（mini560 一类），供 HAT |
 
-**软件**：Linux 主机（或 WSL2 + Windows 11 的 `wsl --mount`）、`git`、`rustup`（稳定版）、
-`gcc-aarch64-linux-gnu`、`device-tree-compiler`、`qemu-utils`（只有走 VHD 路线时需要）。
+**主机环境**：从取源码到交叉编译只需要一台 **Linux 主机**，发行版不限（命令按 Debian/Ubuntu 写，
+其它发行版换等价包）。三种常见情况：
+
+| 主机 | 能做到哪一步 | 说明 |
+| --- | --- | --- |
+| Linux（物理机 / 虚机 / 云主机） | **全部** | 标准路线，组装镜像走 loop 设备 |
+| Windows + WSL2 | **全部** | 我们开发用的环境；差别只在组装镜像没有 loop 设备，走 §5 的 VHD 路线（文档里单独标出） |
+| macOS | 除「组装镜像」外全部 | 编译与 smoke 没问题；组装镜像要写 ext4，第 5 步找任何一台 Linux（虚机/云主机均可）代跑。交叉编译链未在 macOS 验证过，链接器可用 cargo-zigbuild 等价替代 |
+
+除标注「WSL」的步骤外，本文命令对三种环境是同一套。
+
+**软件包**（Debian/Ubuntu 名）：`git`、`rustup`（稳定版，另加 target `aarch64-unknown-linux-gnu`）、
+`gcc-aarch64-linux-gnu`、`device-tree-compiler`；`qemu-utils` 只有 Windows+WSL 的 VHD 路线需要。
 
 ## 1. 取源码
 

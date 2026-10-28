@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 交叉编译 microduck 运行时（robotd/robotctl）并布进镜像 payload。
-# 在 WSL Debian 里跑：bash scripts/build-runtime.sh
+# 在 Linux 主机里跑（Windows 用 WSL 亦可）：bash scripts/build-runtime.sh
 #
 # 前置（一次性）：
 #   rustup stable + rustup target add aarch64-unknown-linux-gnu
