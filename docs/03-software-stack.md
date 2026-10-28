@@ -75,6 +75,12 @@ onnxruntime 由 ort crate 静态链入，板上无需 libonnxruntime.so。
   前两个已在运行时补齐，第三个按设计不做——细节与取舍见 [§C.1](#c1-标定台架bc2026-10-27)。
 - 手柄、蓝牙、连 WiFi、首次开机检查这几张卡片依赖我们**没有部署**的守护进程与镜像件
   （`padd`/`btd`/`configd`/`microduck-netcheck`），所以现在点它们不会生效；运动、状态、标定相关页面不受影响。
+
+**为什么先不部署这四个**：①台架阶段用不到——运动/状态/标定全走 robotd，Studio 已覆盖；
+②它们各拖一串板侧依赖（`mediad` 要 GStreamer + WebRTC 栈，`btd` 要蓝牙 HID 的 udev/守护件，
+`configd` 按官方镜像的 NetworkManager 约定工作），没在 A733 上验证过的东西先塞进去，
+坏的是「烧卡即起」的基线；③加回来不贵——同一个运行时仓，`build-runtime.sh` 的 `-p` 列表
+加上对应 crate、payload 补齐镜像件即可，等手柄/摄像头真要用了再上。
 - 上板后逐页点一遍，把实际能用的页面记在这里。
 
 **装法**（脚本 `scripts/fetch-studio.ps1` 负责拉，这里是人做的部分）：
@@ -187,7 +193,7 @@ Studio 的标定页要三个 0.17.9 里没有的方法，两个已补、一个�
 - **robotd**：只写 `imu_mount_quat` 与 `imu_mount_verified` 两个字段，且只有 `verify-imu` 成功时写
 
 robotd 在开总线时读它、重试时重读（小助手可能在等舵机供电时正在写），载入后以内存为准；
-读失败只 warn 不拒启动——标定坏掉的狗仍然得能站起来重新标。
+读失败只 warn 不拒启动——标定坏掉的鸭子仍然得能站起来重新标。
 
 板侧验收（板子到手后照着走）：
 
@@ -207,8 +213,9 @@ systemctl start robotd                # 回到运动模式
   部署时由同目录的 `install-files.py` 按 `install-files.json` 装到 `/opt/robot/daemon/current/models/`）。
 - **训练工程**：上游 `pollen-robotics/microduck_rl`（MJCF + Isaac/mjlab）。replica 的 `software/training/` 是同一套的改版，
   差异没有大到必须切换，等真要重训再对比。
-- **不装 rknn**：kissqy 的 `duck-detect` 走 RK3588 NPU，A733 用不上；我们只编 `robotd`/`robotctl`，
-  本来就含不进它。
+- **不装 rknn**：kissqy 的 `duck-detect` 走 RK3588 NPU（rknn），代码绑死了那家的运行时，A733 用不上。
+  A733 的 NPU 是 Vivante VIP9000（ACUITY/NBG 工具链），以后要做视觉检测按那条路另起，不随本次移植。
+  我们只编 `robotd`/`robotctl`，本来也含不进它。
 
 ## 待办
 

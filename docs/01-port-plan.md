@@ -3,7 +3,9 @@
 保留 kissqy 那套外部硬件与训练成果（HD-1910 总线舵机、总线 IMU、ONNX 步态策略、标定流程），
 只换主控底座：Radxa ZERO 3W（RK3566）→ Orange Pi Zero 3W（全志 A733：2×A76 + 6×A55，LPDDR5，Wi-Fi 6）。
 
-**不做的事**：NPU / `duck-detect`（RK3588 的 rknn 路线，A733 上用不了）；不复制上游代码。
+**不做的事**：`duck-detect`——它绑定 RK3588 的 rknn 栈，A733 上跑不了。A733 自己的 NPU
+（Vivante VIP9000，ACUITY/NBG 工具链）以后要做视觉检测时可以走，但那是新项目，不随本次移植。
+不复制上游代码。
 
 ## 为什么是这块板
 

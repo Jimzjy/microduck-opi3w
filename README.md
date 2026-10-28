@@ -2,8 +2,6 @@
 
 把 [Pollen Robotics Microduck](https://github.com/pollen-robotics/microduck) 这只开源四足鸭，复刻到
 **Orange Pi Zero 3W（全志 A733）** 上：沿用飞特 HD-1910 总线舵机与总线 IMU，
-HAT 以 kissqy 的 HAT（板名 HAT-V5，立创工程名 HAT_REVA_SCH，同一块板）为基础做接口移植
-（供电外置、UART/I2S/I2C 重映射），把它用不到的部分删掉。
 
 本仓**只放改动和移植文档**，上游代码一律不复制：kissqy 发布仓走 git submodule（固定在
 `eccc2fdb`），官方运行时用一份补丁打在 `daemon-v0.17.9` 上（[patches/](patches/README.md)），
@@ -27,7 +25,7 @@ Studio 与训练工程按需拉取，见 [docs/00-upstreams.md](docs/00-upstream
 
 ## 硬件
 
-- **HAT**：`hardware/eda/HAT_REVA_SCH.eprj2`（EasyEDA Pro），当前 **REV B**，已送厂。
+- **HAT**：`hardware/eda/HAT_REVA_SCH.eprj2`（EasyEDA Pro）。
   相对 kissqy 原图删掉了：板载 5V 降压、旧理想二极管、板载 MEMS 麦（改双外接麦）、ToF 的 Qwiic 座、
   若干冗余阻容、双路保险丝；另加了反接保护 Q2 与防 USB 倒灌的理想二极管 Q3/Q4。
   逐处理由见 [hardware/hat-layout.md](hardware/hat-layout.md)。
