@@ -134,6 +134,11 @@ debugfs -R "stat /usr/local/bin/robotd" ../img/microduck-opi3w-base.img | head  
 
 用 Etcher / Rufus 把 `microduck-opi3w-base.img` 写到 SD 卡 → 插板 → 接串口（8/10）→ 上电。
 
+**调试通道（按优先级）**：① WiFi SSH（正常情况用它）；② **OTG Type-C 虚拟网卡**——镜像已内置
+`usb-gadget` 服务，OTG 口插电脑会出一个 RNDIS 网卡，电脑侧手动设 IP `10.55.0.2/24`，
+然后 `ssh root@10.55.0.1`。装上 HAT 后串口被盖住，这条就是救命通道；③ 串口（8/10）与
+HDMI 用于系统起不来的场景。
+
 首开由 `firstboot` 服务跑 `setup-board-a733.sh`，它会：装 dtbo 并写 `user_overlays`、落
 `/opt/robot/payload/`、把 `robotd`/`robotctl` 装到 `/usr/local/bin`、写默认 `/etc/robot/robotd.toml`
 （已存在则不覆盖）、`systemctl enable robotd`。日志：

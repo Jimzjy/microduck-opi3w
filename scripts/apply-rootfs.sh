@@ -152,6 +152,39 @@ ln -sfn /etc/systemd/system/microduck-firstboot.service \
 	"$MNT/etc/systemd/system/multi-user.target.wants/microduck-firstboot.service"
 say ">> setup-board-a733.sh + microduck-firstboot.service installed"
 
+# ── 3b. USB gadget 虚拟网卡（OTG 口的救命调试通道）───────────────────────────
+# HAT 装上后串口被盖住；OTG Type-C 变 RNDIS+NCM 网卡：ssh root@10.55.0.1
+install -m 0755 "$REPO_DIR/scripts/usb-gadget.sh" "$MNT/usr/local/sbin/usb-gadget.sh"
+
+cat >"$MNT/etc/systemd/system/usb-gadget.service" <<'UNIT'
+[Unit]
+Description=USB RNDIS+NCM ethernet gadget on OTG port
+After=systemd-modules-load.service
+Before=systemd-networkd.service
+Wants=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/usb-gadget.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+ln -sfn /etc/systemd/system/usb-gadget.service \
+	"$MNT/etc/systemd/system/multi-user.target.wants/usb-gadget.service"
+
+mkdir -p "$MNT/etc/systemd/network"
+cat >"$MNT/etc/systemd/network/20-usb0.network" <<'NETDEV'
+[Match]
+Name=usb0
+
+[Network]
+Address=10.55.0.1/24
+NETDEV
+say ">> usb-gadget (RNDIS+NCM) installed, usb0 = 10.55.0.1/24"
+
 # ── 4. 可选内核模块（--module）──────────────────────────────────────────────
 if [ -n "$MODULE_KO" ]; then
 	[ -f "$MODULE_KO" ] || die "module not found: $MODULE_KO"
