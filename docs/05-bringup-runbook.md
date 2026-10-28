@@ -19,6 +19,10 @@ Studio 标定**。每一步都给出命令和验证方法；没验证过的步�
 | 总线 Hub | 1 | `hardware/eda/wire_hub_1V0A.eprj2` |
 | USB-TTL 串口线 | 1 | 3.3 V 电平，接 console（排针 8/10） |
 | 5 V / 3 A 电源模块 | 1 | 同步整流（mini560 一类），供 HAT |
+| ToF 测距模块 **VL53L5X V2** | 1 | 8×8 多区 ToF，I2C 地址 0x29（与 codec 共用 i2c3）。杜邦线接 HAT H1 排针（3V3/GND/SDA/SCL，见 `hat-layout.md` ①；禁止插 Qwiic 转接线，会反接电源） |
+| 喇叭（**3525 腔体**） | 1 | **4 Ω / 3 W**，接 HAT J1 喇叭座（PAM8406D 功放输出） |
+| 摄像头 **Radxa ROCK 5 IMX219** | 1 | CSI 排线接主控 CSI 座。注意：本仓只部署 robotd/robotctl，摄像头链路（mediad/WebRTC）未部署，见 docs/03 §B |
+| 驻极体麦克风 **4015 封装** | 2 | 接 HAT J2（左）/ J9（右）。输出阻抗 2.2 kΩ、工作电压 1–10 V（HAT 偏置 5 V 在范围内）、最大电流 500 µA、最大输入声压 110 dB、灵敏度 56 dB、信噪比 40 dB |
 
 **主机环境**：从取源码到交叉编译只需要一台 **Linux 主机**，发行版不限（命令按 Debian/Ubuntu 写，
 其它发行版换等价包）。三种常见情况：
