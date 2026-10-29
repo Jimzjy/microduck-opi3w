@@ -104,12 +104,20 @@ bash scripts/build-aic31xx-module.sh <linux-headers-*.deb> <驱动源码目录> 
 底图：`Armbian_26.8.1_Orangepizero3w_trixie_vendor_6.6.98_minimal.img.xz`
 （`dl.armbian.com/orangepizero3w/archive/`），解压得到 `.img`。
 
+**1GB 内存版必须换 bootloader**：Armbian 的 boot0 DRAM 参数表不含 1GB 容量，
+上电串口会打 `DRAM Pstate 1 training fail, fail result is 0xff` → `Failed preparing
+the second boot`，死在进 U-Boot 之前（2GB 及以上不受影响）。解法：烧一次官方镜像
+（Orange Pi 下载页的 Debian/Ubuntu，全容量自适应）确认能起，然后把官方 `.img` 传给
+`--bootloader`——脚本把官方镜像的 bootloader 裸区（扇区 16 到分区 1 之前，boot0+U-Boot）
+整段移植进底图，根文件系统不动。官方镜像与底图分区布局不同会直接拒绝执行。
+
 在**带 `/dev/loop` 的 Linux** 上：
 
 ```bash
 sudo scripts/apply-rootfs.sh Armbian_26.8.1_....img \
      --module ../img/aic31xx-module/snd-soc-tlv320aic31xx.ko \
-     --payload ../img/payload
+     --payload ../img/payload \
+     --bootloader /path/to/Orangepizero3w_1.0.2_debian_trixie_server_linux6.6.98.img
 ```
 
 在 WSL2 上（没有 loop 设备）走 VHD 路线：

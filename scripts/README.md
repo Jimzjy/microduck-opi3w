@@ -10,7 +10,7 @@
 | `eda-db-content.py` | 从 `.eprj2` 里提取某类对象的明细 |
 | `fetch-studio.ps1` | 按固定 commit 稀疏拉取 replica 的 `software/studio`，可选推到板子上。新版启动：`python3 -m studio serve --robotd unix:<sock> --listen host:port`，依赖 `python3-starlette` + `python3-uvicorn` |
 | `setup-board-a733.sh` | A733 板侧 bring-up（在板子上跑）：uart2 overlay + ONNX Runtime + 音频 fail-soft（含 aic31xx 内核模块检查）+ 蓝牙手柄 + 板况报告。对照上游 `setup-board.sh`，去掉了全部 RK3566 专属步骤。用法见脚本头注释 |
-| `apply-rootfs.sh` | 把 overlay dtbo + 板侧脚本 + firstboot 服务装进 Armbian 底图 img，可选 `--module <.ko>`（装进 /lib/modules 并 depmod）、`--payload <目录>`。支持 `--mount <挂载点>`（WSL 的 VHD 路线）。用法见脚本头注释 |
+| `apply-rootfs.sh` | 把 overlay dtbo + 板侧脚本 + firstboot 服务装进 Armbian 底图 img，可选 `--module <.ko>`（装进 /lib/modules 并 depmod）、`--payload <目录>`、`--bootloader <官方镜像.img>`（移植官方 boot0/u-boot 裸区，1GB 内存版必选，见 docs/05 §5）。支持 `--mount <挂载点>`（WSL 的 VHD 路线）。用法见脚本头注释 |
 | `build-aic31xx-module.sh` | out-of-tree 交叉编译 `snd-soc-tlv320aic31xx.ko`（A733 音频 codec 驱动，vendor 内核没编）。记录了 headers 包全部手工补丁（fixdep、modpost、utsrelease 回写）。在 Linux（root）跑，WSL 亦可，用法见脚本头注释 |
 | `aic31xx-build-aids/` | 上面脚本的配套留档：`arm64-tools-Makefile`（headers 缺的 kapi 生成器 Makefile）、`build-modpost-manual2.sh`（手工构建 kbuild modpost，含 devicetable-offsets.h 的 .s→.h 转换） |
 | `build-runtime.sh` | 交叉编译运行时 `robotd`/`robotctl`（aarch64，源 = `microduck-runtime` 仓 `opi3w-feetech` 分支 = 官方 0.17.9 + 我们的补丁）并布进 `$MICRODUCK_IMG/payload/runtime-bin/`（默认仓库同级的 `img/`）。先跑受影响 crate 测试再出产物，`SKIP_TEST=1` 可跳。产物 GLIBC 符号最高要求 2.39（底图 trixie 的 2.41 满足）；onnxruntime 静态链入板上无需装库。**二进制不进 git** |

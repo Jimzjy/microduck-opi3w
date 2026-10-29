@@ -17,9 +17,13 @@
 #      Studio 等，由 firmware 仓库的 install 布局决定；没有就跳过，板侧手工装）
 #   5. 可选 --module <.ko>：out-of-tree 内核模块装进 /lib/modules/<kver>/kernel/
 #      并跑 depmod（当前只有 snd-soc-tlv320aic31xx.ko，codec 驱动 vendor 内核没编）
+#   6. 可选 --bootloader <官方镜像.img>：把官方镜像的 bootloader 裸区（扇区 16 到
+#      分区 1 之前，boot0+U-Boot）整段移植进底图。1GB 内存版的 Armbian boot0
+#      DRAM 参数表不含该容量，会死在 "DRAM Pstate training fail"；
+#      官方 boot0（v1.0.2 实测）全容量自适应，换上即起。
 #
 # 不做的事：
-#   - 不动 boot0/u-boot 裸区（Armbian 出厂即 A733 版）
+#   - 默认不动 boot0/u-boot 裸区（只有显式给 --bootloader 才动）
 #   - 不在镜像里跑 apt（保最小改动，依赖装留给 setup 脚本在板上做/离线做）
 #
 # 用法（需要 root + loop 设备；WSL2 默认内核没有 loop 模块，请在真机 Linux/CI 里跑）：
@@ -33,15 +37,17 @@ set -euo pipefail
 BASE_IMG=""
 PAYLOAD_DIR=""
 MODULE_KO=""
+BOOT_DONOR=""
 MOUNT_DIR=""
 
 say() { printf '%s\n' "$*"; }
 die() { say "error: $*"; exit 1; }
 
 usage() {
-	say "usage: sudo $0 <base.img> [--module <.ko>] [--payload <dir>]"
+	say "usage: sudo $0 <base.img> [--module <.ko>] [--payload <dir>] [--bootloader <官方镜像.img>]"
 	say "       sudo $0 --mount <已挂载的rootfs目录> [--module <.ko>] [--payload <dir>]"
 	say "（--mount 给没有 loop 设备的环境用：比如 WSL2 里 wsl --mount --vhd 挂进来的分区）"
+	say "（--bootloader 见文件头第 6 条：1GB 内存版必须换官方 bootloader 才能起）"
 	exit 2
 }
 
@@ -55,6 +61,11 @@ while [ $# -gt 0 ]; do
 	--module)
 		[ $# -ge 2 ] || usage
 		MODULE_KO="$2"
+		shift 2
+		;;
+	--bootloader)
+		[ $# -ge 2 ] || usage
+		BOOT_DONOR="$2"
 		shift 2
 		;;
 	--mount)
@@ -83,6 +94,27 @@ SETUP_SH="$REPO_DIR/scripts/setup-board-a733.sh"
 for f in "$OVERLAY_DIR/uart2-dxl.dtbo" "$OVERLAY_DIR/audio-a733.dtbo" "$SETUP_SH"; do
 	[ -f "$f" ] || die "missing: $f（dtbo 用 dtc -@ 编译 .dts 生成）"
 done
+
+# ── 0. 可选 bootloader 移植（--bootloader，只配 <base.img> 模式）──────────────
+# 1GB 内存版：Armbian boot0 的 DRAM 参数表不含该容量，BOOT0 日志特征是
+#   "dram para7 invalid use default para" + "DRAM Pstate 1 training fail, 0xff"
+#   + "Failed preparing the second boot"，死在进 U-Boot 之前。
+# 官方镜像的 boot0 全容量自适应，把它的裸区（扇区 16 到分区 1 之前）整段移植即可。
+if [ -n "$BOOT_DONOR" ]; then
+	[ -n "$BASE_IMG" ] || die "--bootloader 只能配 <base.img> 模式用（--mount 模式没有可写的 img）"
+	[ -f "$BOOT_DONOR" ] || die "not a file: $BOOT_DONOR"
+	magic=$(dd if="$BOOT_DONOR" bs=1 skip=8196 count=4 status=none)
+	[ "$magic" = "eGON" ] || die "$BOOT_DONOR 扇区 16 处没有 eGON boot0 magic（不是 Allwinner sunxi 镜像？）"
+	SRC_START=$(sfdisk -d "$BOOT_DONOR" 2>/dev/null | awk '/start=/{print $4; exit}')
+	DST_START=$(sfdisk -d "$BASE_IMG" 2>/dev/null | awk '/start=/{print $4; exit}')
+	if [ -z "$SRC_START" ] || [ -z "$DST_START" ]; then
+		die "cannot read partition start of both images"
+	fi
+	[ "$SRC_START" = "$DST_START" ] || die "分区起点不一致（donor $SRC_START vs base $DST_START），镜像布局不同，拒绝移植"
+	SECS=$((SRC_START - 16))
+	dd if="$BOOT_DONOR" of="$BASE_IMG" bs=512 skip=16 seek=16 count="$SECS" conv=notrunc status=none
+	say ">> bootloader 区域已从 $(basename "$BOOT_DONOR") 移植（扇区 16..$((SRC_START - 1))，$SECS 扇区）"
+fi
 
 # ── 挂载 ─────────────────────────────────────────────────────────────────────
 if [ -n "$MOUNT_DIR" ]; then
