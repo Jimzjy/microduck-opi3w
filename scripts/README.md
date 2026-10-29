@@ -8,7 +8,7 @@
 | `eda-exec.ps1` | 把一段 JS 送进正在运行的 EasyEDA Pro 执行，返回 JSON。改原理图全靠它 |
 | `eda-db-inspect.py` | 只读解析 `.eprj2`（SQLite 工程库），列工程结构与分支，用于快速核对工程内容 |
 | `eda-db-content.py` | 从 `.eprj2` 里提取某类对象的明细 |
-| `fetch-studio.ps1` | 按固定 commit 稀疏拉取 replica 的 `software/studio`，可选推到板子上 |
+| `fetch-studio.ps1` | 按固定 commit 稀疏拉取 replica 的 `software/studio`，可选推到板子上。新版启动：`python3 -m studio serve --robotd unix:<sock> --listen host:port`，依赖 `python3-starlette` + `python3-uvicorn` |
 | `setup-board-a733.sh` | A733 板侧 bring-up（在板子上跑）：uart2 overlay + ONNX Runtime + 音频 fail-soft（含 aic31xx 内核模块检查）+ 蓝牙手柄 + 板况报告。对照上游 `setup-board.sh`，去掉了全部 RK3566 专属步骤。用法见脚本头注释 |
 | `apply-rootfs.sh` | 把 overlay dtbo + 板侧脚本 + firstboot 服务装进 Armbian 底图 img，可选 `--module <.ko>`（装进 /lib/modules 并 depmod）、`--payload <目录>`。支持 `--mount <挂载点>`（WSL 的 VHD 路线）。用法见脚本头注释 |
 | `build-aic31xx-module.sh` | out-of-tree 交叉编译 `snd-soc-tlv320aic31xx.ko`（A733 音频 codec 驱动，vendor 内核没编）。记录了 headers 包全部手工补丁（fixdep、modpost、utsrelease 回写）。在 Linux（root）跑，WSL 亦可，用法见脚本头注释 |
