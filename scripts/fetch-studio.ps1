@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   按固定 commit 稀疏拉取 microduck-replica 的 software/studio（可选推到板子上）。
 
@@ -15,7 +15,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Commit = 'fc32b6a23d71c7271179cabb6d5d84d6781feced',
+    [string]$Commit = '0b463c56d9abb649854774a9439f9b863510b643',
     [string]$Remote = 'https://github.com/fanhao375/microduck-replica.git',
     [string]$Dest   = '',
     [string]$Proxy  = 'http://127.0.0.1:10808',
