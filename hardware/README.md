@@ -19,8 +19,6 @@ IMU 板 / POGO 电池连接板**不在本仓**: 原样沿用 replica 的设计, 
 `hardware/新版/imu_to_dxl_1V0A/firmware-1.0.0/Build/imu_to_dxl.hex`, 烧录说明见
 [imu-layout.md](imu-layout.md) §5)。POGO 板是电池的顶针接触连接板。
 要改这两块板, clone replica 仓改它的工程。
-**注意: replica 的 wire_hub (总线 HUB) 板有正负极短路缺陷 (打板前未过 DRC), 勿照它打板;
-本项目不做 HUB, 电池直接插 HAT 的 J13/J14。**
 
 ## HAT 供电定案
 
