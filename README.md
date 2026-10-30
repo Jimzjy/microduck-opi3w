@@ -2,22 +2,20 @@
 
 把 [Pollen Robotics Microduck](https://github.com/pollen-robotics/microduck) 这只开源四足鸭复刻到
 **Orange Pi Zero 3W (全志 A733)** 上: 沿用飞特 HD-1910 总线舵机与总线 IMU。
-本仓只放改动与移植文档, 上游代码不复制 (kissqy 发布仓是 submodule, 官方运行时打补丁, 见下文)。
+本仓只放改动与移植文档, 上游代码不复制。
 
 ## 你需要准备什么
-
-必选 (缺一不可):
 
 | # | 物料 | 说明 |
 | --- | --- | --- |
 | 1 | Orange Pi Zero 3W 主控板 | 本项目按 1GB 版实测 (需换官方 bootloader, 见 docs/05 第 5 步); 2GB 及以上不受影响 |
-| 2 | HAT 扩展板 (自制) | 工程 `hardware/eda/HAT_REVA_SCH_OPI3W.eprj2` (EasyEDA Pro), REV B。打样 + 贴片, BOM 见 [hardware/hat-layout.md](hardware/hat-layout.md) |
+| 2 | HAT 扩展板 (自制) | 工程 `hardware/eda/HAT_REVA_SCH_OPI3W.eprj2` (EasyEDA Pro), BOM 见 [hardware/hat-layout.md](hardware/hat-layout.md) |
 | 3 | IMU 板 (自制) | 用 [microduck-replica](https://github.com/fanhao375/microduck-replica) 的 `hardware/新版/imu_to_dxl_1V0A` 工程打板, 烧其 `firmware-1.0.0`, 见 [hardware/imu-layout.md](hardware/imu-layout.md) §5 |
 | 4 | 5V DC-DC 模块 | 3A 同步整流 (mini560 类, 不要用 2A 的 LM2596), 给 HAT 供电 |
 | 5 | 15x HD-1910 舵机 | 飞特 STS 总线; ID 分配与标定见 docs/05 第 8 步 |
 | 6 | 喇叭 1 个 | 3525 腔体, 4Ω 3W, 接 HAT J1 |
 | 7 | 驻极体麦克风 2 个 | 4015 型, 左右各一, 接 HAT J2/J9 |
-| 8 | 5V 电源 (USB-C) + microSD 卡 | 卡 >= 8GB; 调试另备 mini HDMI 线或 USB-TTL 串口线 |
+| 8 | microSD 卡 | 卡 >= 8GB; 调试另备 mini HDMI 线或 USB-TTL 串口线 |
 
 后续扩展 (现阶段不必备, 我们也尚未实测):
 
@@ -26,29 +24,23 @@
 | ToF 测距模块 | VL53L5X V2 (I2C, 接 HAT H1 4P 排针); 用于拾取检测 |
 | CSI 摄像头 | IMX219 (Radxa ROCK 5 摄像头同款, 22P RPI 序 FPC, 两个 CAM 座任插); 视频链依赖未部署的 mediad, 见 docs/03 §B |
 
-不需要:
-
-- **HUB 总线板**: 不做。舵机电池直接接在 HAT 的 J13/J14 总线座上给舵机串供电
-  (座脚序 1=数据 / 2=电池+ / 3=GND, 详见 hat-layout)。
-  **注意: replica 仓的 wire_hub 板有正负极短路缺陷 (打板前未过 DRC), 不要照它打板。**
-- POGO 引脚板: 仅烧录/测试 IMU 时可选, 用 `microduck-replica` 仓里的工程。
-- 3D 打印件与机壳: 不在本仓, 从 [官方 microduck](https://github.com/pollen-robotics/microduck) (MJCF/STL)
+3D 打印件与机壳: 不在本仓, 从 [官方 microduck](https://github.com/pollen-robotics/microduck) (MJCF/STL)
   或 [kissqy 发布包](https://github.com/kissqy/Microduck-kissqy) 取。
 
 想直接动手: [docs/05-bringup-runbook.md](docs/05-bringup-runbook.md)
 (clone → 编译 → 镜像 → 烧卡 → 验收 → 标定)。其余文档是设计与背景, 复刻遇到问题时再读。
 
-## 三条上游, 各取什么
+## 三条上游
 
 | 上游 | 它是什么 | 我们取哪部分 | 许可 |
 | --- | --- | --- | --- |
 | [pollen-robotics/microduck](https://github.com/pollen-robotics/microduck), [microduck_rl](https://github.com/pollen-robotics/microduck_rl) | 官方运行时 (Rust), 强化学习训练, MJCF + STL | 主控运行时基线: 官方 `daemon-v0.17.9` + 我们的补丁 (Feetech 后端, 总线 IMU, 标定台架); 3D 打印件 | 代码 Apache-2.0; 3D 网格 CC BY-NC-SA |
-| [kissqy/Microduck-kissqy](https://github.com/kissqy/Microduck-kissqy) | HAT (板名 HAT-V5 / 工程 HAT_REVA_SCH), HD-1910 运行时 fork, 总线 IMU 板, 发布包 (步态模型等) | HAT 硬件基线 (已按本仓精简) + 发布包 (真步态 ONNX 模型, 安装脚本, 文档) | 见 `firmware/` 内 LICENSE; 文档/资产沿用上游条款 |
-| [fanhao375/microduck-replica](https://github.com/fanhao375/microduck-replica) | 用官方 HAT 的复刻实践, 板载网页中控 Studio, 自制 IMU v2 / wire_hub / POGO 板, 大量实测文档 | 硬件与工程实践主参考: IMU v2 板 (硬件 + 固件 `firmware-1.0.0` 都用它), Studio (固定 commit), 镜像脚本思路, 踩坑记录 | 代码/Studio/镜像脚本 Apache-2.0; 文档与 3D CC BY-NC-SA |
+| [kissqy/Microduck-kissqy](https://github.com/kissqy/Microduck-kissqy) | HD-1910 运行时 fork, 总线 IMU 板, 发布包 (步态模型等) | HAT 硬件基线 (已按本仓精简) + 发布包 (真步态 ONNX 模型, 安装脚本, 文档) | 见 `firmware/` 内 LICENSE; 文档/资产沿用上游条款 |
+| [fanhao375/microduck-replica](https://github.com/fanhao375/microduck-replica) | 板载网页中控 Studio, 自制 IMU v2 / wire_hub / POGO 板, 大量实测文档 | 硬件与工程实践主参考: IMU v2 板 (硬件 + 固件 `firmware-1.0.0` 都用它), Studio (固定 commit), 镜像脚本思路, 踩坑记录 | 代码/Studio/镜像脚本 Apache-2.0; 文档与 3D CC BY-NC-SA |
 
 固件分工: **主控运行时 = 官方 0.17.9 + 我们的补丁** (`patches/runtime-opi3w-feetech.patch`);
 **IMU 板固件 = replica 的 `firmware-1.0.0`** (板就是 replica 的 v2, 贴片与固件同源)。
-kissqy 子模块不用于固件, 只作 HAT 硬件基线与发布包来源。
+kissqy 子模块作为 HAT 硬件基线与发布包来源。
 详见 [docs/03-software-stack.md](docs/03-software-stack.md)。
 
 ## 目录

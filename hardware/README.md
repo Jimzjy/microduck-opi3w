@@ -13,12 +13,14 @@
 | `eda/HAT_REVA_SCH_OPI3W.eprj2` | HAT 原理图工程 (EasyEDA Pro), REV B, 已送厂。**本仓唯一自有的 EDA 工程** |
 | `datasheets/` | 厂商原始文档存档: 飞特 HD-1910-C001 规格书, Orange Pi Zero 3W 手册/原理图/位号图/DXF (含 SHA256 与用途说明, 见其 README) |
 
-IMU 板 / 总线 HUB / POGO 引脚板**不在本仓**: 原样沿用 replica 的设计, 未做任何修改, 工程文件用
+IMU 板 / POGO 电池连接板**不在本仓**: 原样沿用 replica 的设计, 未做任何修改, 工程文件用
 [fanhao375/microduck-replica](https://github.com/fanhao375/microduck-replica) 仓里的
-`hardware/新版/imu_to_dxl_1V0A / wire_hub_1V0A / POGO_PIN_1V0A` (同仓库也带固件
+`hardware/新版/imu_to_dxl_1V0A / POGO_PIN_1V0A` (IMU 板的固件也在同仓库:
 `hardware/新版/imu_to_dxl_1V0A/firmware-1.0.0/Build/imu_to_dxl.hex`, 烧录说明见
-[imu-layout.md](imu-layout.md) §5)。要改这三块板, clone replica 仓改它的工程。
-**注意: replica 的 wire_hub 板有正负极短路缺陷 (打板前未过 DRC), 勿照它打板。**
+[imu-layout.md](imu-layout.md) §5)。POGO 板是电池的顶针接触连接板。
+要改这两块板, clone replica 仓改它的工程。
+**注意: replica 的 wire_hub (总线 HUB) 板有正负极短路缺陷 (打板前未过 DRC), 勿照它打板;
+本项目不做 HUB, 电池直接插 HAT 的 J13/J14。**
 
 ## HAT 供电定案
 
