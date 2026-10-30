@@ -7,7 +7,7 @@ Studio 标定**。每一步都给出命令和验证方法; 没验证过的步骤
 
 ## 0. 需要什么
 
-**硬件** (型号与替代见 [DUCK-SHOPPING-LIST](../firmware/DUCK-SHOPPING-LIST.md) 与 [START-HERE](../firmware/START-HERE.txt))
+**硬件** (型号与替代见 [DUCK-SHOPPING-LIST](https://github.com/kissqy/Microduck-kissqy/blob/main/DUCK-SHOPPING-LIST.md) 与 [START-HERE](https://github.com/kissqy/Microduck-kissqy/blob/main/START-HERE.txt); 子模块初始化后本仓 `firmware/` 下也有同名文件)
 
 | 件 | 数量 | 说明 |
 | --- | --- | --- |
