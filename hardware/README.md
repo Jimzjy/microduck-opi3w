@@ -10,11 +10,14 @@
 | `hat-layout.md` | HAT 逐区说明：电源、音频、DXL 总线、ToF、排针；以及每处改动的理由 |
 | `imu-layout.md` | IMU 板：连接器脚序、电源、数据通路、MCU 引脚、固件来源 |
 | `overlay/` | A733 设备树 overlay：`uart2-dxl.dts`（打开 uart2 PB0/PB1 → 排针 11/13）、`audio-a733.dts`（aic31xx 声卡） |
-| `eda/HAT_REVA_SCH_OPI3W.eprj2` | HAT 原理图工程（EasyEDA Pro），REV B，已送厂 |
-| `eda/imu_to_dxl_1V0A.eprj2` | IMU 板工程（replica v2，未改） |
-| `eda/wire_hub_1V0A.eprj2` | 总线 HUB（电池分配 + 舵机口），replica 衍生 |
-| `eda/POGO_PIN_1V0A.eprj2` | POGO 引脚板（烧录/测试用），replica 衍生 |
+| `eda/HAT_REVA_SCH_OPI3W.eprj2` | HAT 原理图工程（EasyEDA Pro），REV B，已送厂。**本仓唯一自有的 EDA 工程** |
 | `datasheets/` | 厂商原始文档存档：飞特 HD-1910-C001 规格书、Orange Pi Zero 3W 手册/原理图/位号图/DXF（含 SHA256 与用途说明，见其 README） |
+
+IMU 板 / 总线 HUB / POGO 引脚板**不在本仓**：它们原样沿用 replica 的设计，未做任何修改，
+工程文件直接用 `fanhao375/microduck-replica` 仓里的
+`hardware/新版/imu_to_dxl_1V0A / wire_hub_1V0A / POGO_PIN_1V0A`（同仓库也带固件
+`hardware/新版/imu_to_dxl_1V0A/firmware-1.0.0/Build/imu_to_dxl.hex`，烧录说明见
+[imu-layout.md](imu-layout.md) §5）。要改这三块板，clone replica 仓改它的工程。
 
 ## HAT 供电定案
 
