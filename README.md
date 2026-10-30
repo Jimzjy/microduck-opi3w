@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | 1 | Orange Pi Zero 3W 主控板 | 本项目按 1GB 版实测 (需换官方 bootloader, 见 docs/05 第 5 步); 2GB 及以上不受影响 |
 | 2 | HAT 扩展板 (自制) | 工程 `hardware/eda/HAT_REVA_SCH_OPI3W.eprj2` (EasyEDA Pro), REV B。打样 + 贴片, BOM 见 [hardware/hat-layout.md](hardware/hat-layout.md) |
-| 3 | IMU 板 (自制) | `hardware/eda/imu_to_dxl_1V0A.eprj2`, 烧 replica 的 firmware-1.0.0, 见 [hardware/imu-layout.md](hardware/imu-layout.md) §5 |
+| 3 | IMU 板 (自制) | 用 [microduck-replica](https://github.com/fanhao375/microduck-replica) 的 `hardware/新版/imu_to_dxl_1V0A` 工程打板, 烧其 `firmware-1.0.0`, 见 [hardware/imu-layout.md](hardware/imu-layout.md) §5 |
 | 4 | 5V DC-DC 模块 | 3A 同步整流 (mini560 类, 不要用 2A 的 LM2596), 给 HAT 供电 |
 | 5 | 15x HD-1910 舵机 | 飞特 STS 总线; ID 分配与标定见 docs/05 第 8 步 |
 | 6 | 喇叭 1 个 | 3525 腔体, 4Ω 3W, 接 HAT J1 |
@@ -65,7 +65,7 @@ patches/
   runtime-opi3w-feetech.patch   我们运行时分支的完整差分 (打在上游 daemon-v0.17.9 上)
   README.md                     基线与结果树哈希, apply 步骤, 内容清单
 hardware/
-  eda/                  EasyEDA Pro 工程 (HAT REV B / IMU 板)
+  eda/                  EasyEDA Pro 工程 (HAT REV B; IMU/HUB/POGO 板用 replica 仓的工程)
   overlay/              A733 设备树 overlay (uart2-dxl.dts, audio-a733.dts)
   hat-layout.md         HAT 网表, BOM, 每处改动的理由
   pinmap.md             40-pin 重映射 + A733 控制器实证
