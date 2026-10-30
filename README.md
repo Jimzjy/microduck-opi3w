@@ -13,7 +13,7 @@
 | 3 | IMU 板 | 用 [microduck-replica](https://github.com/fanhao375/microduck-replica) 的 `hardware/新版/imu_to_dxl_1V0A` 工程打板, 烧其 `firmware-1.0.0`, 见 [hardware/imu-layout.md](hardware/imu-layout.md) §5 |
 | 4 | 5V DC-DC 模块 | 3A 同步整流 (mini560 类, 不要用 2A 的 LM2596), 同时给 HAT 和 IMU 板供电 |
 | 5 | 15x HD-1910 舵机 | 飞特 STS 总线; ID 分配与标定见 docs/05 第 8 步 |
-| 6 | microSD 卡 | 卡 >= 8GB; 调试另备 mini HDMI 线或 USB-TTL 串口线 |
+| 6 | microSD 卡 | 卡 >= 16GB; 调试另备 mini HDMI 线或 USB-TTL 串口线 |
 
 喇叭, 麦克风等其余外设的型号与采购见 kissqy 发布包: [DUCK-SHOPPING-LIST](https://github.com/kissqy/Microduck-kissqy) (子模块 `firmware/` 内同款文件)。
 
@@ -51,7 +51,6 @@ docs/
   01-port-plan.md       移植要点: 换板要动哪四件事, 阶段状态, 风险
   02-hat-porting.md     HAT 移植方案与已执行的供电/引脚改动
   03-software-stack.md  软件层: 运行时 / Studio / 镜像 / 训练, 谁在哪, 怎么装
-  04-reading-list.md    replica 必读清单 (上机前 / 排障时 / 改设计时各看哪几篇)
   05-bringup-runbook.md 从零复刻: clone -> 编译 -> 镜像 -> 烧卡 -> 验收 -> 标定
 patches/
   runtime-opi3w-feetech.patch   我们运行时分支的完整差分 (打在上游 daemon-v0.17.9 上)

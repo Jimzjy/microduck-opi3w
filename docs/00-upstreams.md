@@ -23,7 +23,6 @@ fanhao375/microduck-replica (官方 HAT 上的复刻实践)—— 本仓的"硬�
 ├── software/image/         "烧好就能用"镜像的构建脚本 (绑定 Radxa R1 / rk35xx)
 ├── software/training/      mjlab 训练工程 (HD-1910)
 └── docs/ + 根目录 *.md     按日期的实机调试记录, 踩坑记录, 硬件逆向, 采购清单
-                            必读清单见 docs/04-reading-list.md (只引用, 不搬运)
 ```
 
 **运行时以上游官方 0.17.9
@@ -41,7 +40,7 @@ fanhao375/microduck-replica (官方 HAT 上的复刻实践)—— 本仓的"硬�
 | 镜像构建思路 | replica (参考, 不直接用) | 它的 `build-image.sh` 以 **Radxa R1 镜像**为底座, 换成 rk35xx U-Boot 与 B1 DTB, 对 A733 完全不适用; 只借它的目录结构, 清理步骤与首次开机脚本的写法 |
 | 训练 / 模型 | kissqy release-assets | 训练工程 (mjlab)与走路模型随仓发布, 能直接用; replica 的训练工程是同一套的改版, 没有必须切换的理由 |
 | 硬件防护与连接器经验 | replica (引用结论) | 它的 v2 板已经踩过 TVS / PTC / 连接器序的坑, 我们照结论做, 不重复实验 |
-| 排障与工程记录 | replica `docs/`, `踩坑记录.md`, `调试记录.md` | 上机前读一遍能省掉大量试错; 清单见 `docs/04-reading-list.md` |
+| 排障与工程记录 | replica `docs/`, `踩坑记录.md`, `调试记录.md` | 上机前读一遍能省掉大量试错 (在 replica 仓里直接看) |
 | 3D 打印件 | replica | 我们不改结构 |
 
 ### 明确不取的
