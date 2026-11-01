@@ -3,32 +3,26 @@
 // 基础：Armbian trixie vendor 6.6.98（sun60i-a733-orangepi-zero3w.dtb），
 // 源码 orangepi-xunlong/linux-orangepi 分支 orange-pi-6.6-sun60iw2。
 //
-// 板级 dts 现状（2026-10-27 实测核对）：
-//   - &twi0（twi@2510000，PB2/PB3 = 排针 5/3，400kHz）status="disabled"
-//   - &i2s0_plat（i2s0_plat@2532000，PB4-PB8 = 排针 7/12/35/38/40）status="disabled"
-//   - &i2s0_mach（挂在 /soc@3000000 下）status="okay"，其 codec 子节点
-//     i2s0_codec 的 sound-dai 指向板载 &ac101 —— 我们不用 AC101，overlay
-//     把 sound-dai 改指向本 overlay 新增的 aic3104 节点（fdtoverlay 的
-//     __local_fixups__ 会把 overlay 内部 phandle 引用修正，无需基础 dtb 符号表）。
+// 驱动：TLV320AIC3104 属 TI AIC3x 家族，对应 snd-soc-tlv320aic3x。
+// aic31xx 那支是 AIC3100/3110/3120 家族，两张寄存器表不同（Page0 Reg37 在
+// AIC3x 里是 DAC 上电控制，在 aic31xx 里是只读上电标志），不能互换。
+//
+// 板级实测（2026-10-27）：
+//   - &twi0（twi@2510000，PB2/PB3）status="disabled"
+//   - &i2s0_plat（i2s0_plat@2532000，PB4-PB8）status="disabled"
+//   - &i2s0_mach 挂在 /soc@3000000 下，其 codec 子节点 sound-dai 指向板载
+//     &ac101；本板不用 AC101，overlay 改为指向新增的 aic3104 节点
+//     （fdtoverlay 的 __local_fixups__ 会修正 overlay 内部 phandle 引用）。
 //
 // 不做的事（fdtoverlay 只能合并属性，不能删除，全用覆盖）：
-//   - 不删 i2s0_mach 里 AC101 的 pin-switches / routing：留原值只会在 ALSA
-//     卡片上多出找不到对应控件的声明（非致命）；控件名核对后上板再精调。
-//
-// 上板前必核（标记 TODO-BOARD）：
-//   1. tlv320aic31xx 驱动是否真编进 Armbian vendor 6.6.98 内核/模块
-//      （grep snd-soc-tlv320aic31xx /lib/modules/…/ 或 /proc/config.gz 的
-//      CONFIG_SND_SOC_TLV320AIC31XX）。
-//   2. aic3104 的 DAPM 控件名，据实把 routing/pin-switches 覆盖成正确值。
-//   3. our HAT 的 MCLK 来自板上 Y1 12MHz 有源晶振（不经排针），codec DT 节点
-//     不需要 SoC 时钟引用；若驱动 probe 报缺 mclk，再补 fixed-clock。
+//   - 不删 i2s0_mach 里 AC101 的 pin-switches / routing，只覆盖成本板真实的控件名。
 
 /dts-v1/;
 /plugin/;
 
 &{/soc@3000000/twi@2510000} {
-	// 与基础 dtb twi0 的 #address-cells/#size-cells（1/0）一致，仅为消
-	// dtc 静态检查对 fragment 内 reg 的警告，应用后不改变父节点行为。
+	// 与基础 dtb twi0 的 #address-cells/#size-cells（1/0）一致，仅消 dtc
+	// 对 fragment 内 reg 的警告，应用后不改变父节点行为。
 	#address-cells = <1>;
 	#size-cells = <0>;
 	status = "okay";
@@ -37,7 +31,47 @@
 		compatible = "ti,tlv320aic3104";
 		reg = <0x18>;
 		#sound-dai-cells = <0>;
+		// aic3x 驱动要读四路供电电压，缺声明会报 Invalid supply voltage(s)
+		// 并 probe 失败。HAT 实际供电：AVDD/IOVDD/DRVDD = 3V3 母线，
+		// DVDD = 板上 XC6206P182 的 1.8V。
+		AVDD-supply = <&aic3x_avdd>;
+		DVDD-supply = <&aic3x_dvdd>;
+		IOVDD-supply = <&aic3x_iovdd>;
+		DRVDD-supply = <&aic3x_drvdd>;
 		status = "okay";
+	};
+};
+
+// 物理上是板载固定电源，声明成 regulator-fixed 只是给驱动一个电压值。
+/ {
+	fragment@100 {
+		target-path = "/";
+		__overlay__ {
+			aic3x_avdd: regulator-aic3x-avdd {
+				compatible = "regulator-fixed";
+				regulator-name = "aic3x-avdd";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+			};
+			aic3x_iovdd: regulator-aic3x-iovdd {
+				compatible = "regulator-fixed";
+				regulator-name = "aic3x-iovdd";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+			};
+			aic3x_drvdd: regulator-aic3x-drvdd {
+				compatible = "regulator-fixed";
+				regulator-name = "aic3x-drvdd";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+			};
+			aic3x_dvdd: regulator-aic3x-dvdd {
+				compatible = "regulator-fixed";
+				regulator-name = "aic3x-dvdd";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+			};
+		};
 	};
 };
 
@@ -48,10 +82,39 @@
 &{/soc@3000000/i2s0_mach} {
 	soundcard-mach,name = "aic3104-hat";
 
+	// 底图给 AC101 配的是 4 slot x 16 bit 的 TDM。机器驱动把 slot-num 传给
+	// snd_soc_dai_set_tdm_slot() 时 mask 是 0，ASoC core 用
+	// snd_soc_xlate_tdm_slot_mask() 补成 (1 << slots) - 1，于是 4 slot 得到
+	// 0b1111；aic3x 的 set_tdm_slot 要求 mask 正好两个相邻 bit，直接 -EINVAL
+	// （dmesg: Invalid mask, slots must be adjacent）。aic3104 只用双声道，
+	// 这里改成 2 slot，mask = 0b11。slot-width 16 与 S16_LE 音源对应，
+	// BCLK = 32fs。
+	soundcard-mach,slot-num = <2>;
+	soundcard-mach,slot-width = <16>;
+
 	// soundcard-mach,cpu 不动：基础 dtb 里 sound-dai 已正确指向 i2s0_plat，
 	// overlay 无法为基础 dtb 节点生成 phandle，不要在这里引用它。
+
+	// 底图给的是 kissqy 板载 AC101 的路由表（MIC1P_PIN / LINEOUTLP_PIN / SPK），
+	// 本板 codec 上没有这些 widget，注册路由失败会让机器驱动建 PCM 失败。
+	// 这两条属性不能留空：空 routing 让 asoc_simple_parse_routing() 返回
+	// -EINVAL（parse error -22），空 pin-switches 返回 -ENODATA（-61）。
+	// 本板只用右声道线路输出：DAC -> Right Line Out -> RLOUT（= U2-29 RIGHT_LOP），
+	// 左声道在 HAT 上已整条删除。
+	soundcard-mach,routing = "RLOUT", "Right Line Out";
+
+	// 输入脚开关，给两个麦克风输入脚，仅满足解析、不影响输出通路。
+	soundcard-mach,pin-switches = "LINE1L", "LINE1R";
 
 	soundcard-mach,codec {
 		sound-dai = <&aic3104>;
 	};
+};
+
+// MCLK 不是 SoC 给的，是 HAT 上 Y1 那颗 12 MHz 晶振直接送进 U2-1/AUDIO_MCLK。
+// 机器驱动默认 mclk-fs=0，于是给 codec 设的 sysclk 是 0，aic3x_hw_params()
+// 算不出分频。12 MHz / 256 = 46875，两个 fp 都给 46875，sysclk 恒为 12 MHz。
+&{/soc@3000000/i2s0_mach/soundcard-mach,cpu} {
+	soundcard-mach,mclk-fs = <256>;
+	soundcard-mach,mclk-fp = <46875 46875>;
 };

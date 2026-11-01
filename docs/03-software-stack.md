@@ -129,10 +129,11 @@ dl.armbian.com/orangepizero3w/archive/, Debian 13 + vendor 6.6.98 内核, glibc 
 
 - 分区: 单 ext4 p1, 起点扇区 65536 (32 MiB); 前面裸区是 Allwinner boot0/u-boot。rootfs UUID `932dec6a-307e-4174-8694-c4a1ef18eef4`。
 - `/boot/armbianEnv.txt`: `fdtfile=allwinner/sun60i-a733-orangepi-zero3w.dtb`, `overlay_prefix=sun60i-a733`, **没有 `user_overlays` 行 (追加即可)**。
-- 内核 config: `CONFIG_SND_SOC_AC101=y` (板载声卡); **`# CONFIG_SND_SOC_TLV320AIC31XX is not set`**——aic31xx 驱动
-  源码在厂商内核树 `sound/soc/codecs/tlv320aic31xx.c`, 但没编进内核。**已 out-of-tree 交叉编译解决 ✅**: 
-  `snd-soc-tlv320aic31xx.ko` vermagic `6.6.98-vendor-sun60iw2` 与目标内核一致 (`scripts/build-aic31xx-module.sh`, 
-  依赖 REGMAP_I2C/I2C/SND_SOC/SND_SOC_I2C_AND_SPI 全部 =y 内置, 模块无硬依赖); overlay 已就绪。
+- 内核 config: `CONFIG_SND_SOC_AC101=y` (板载声卡); **`# CONFIG_SND_SOC_TLV320AIC3X is not set`**——AIC3x 驱动
+  (`sound/soc/codecs/tlv320aic3x.c`) 在厂商树里存在但没编进内核。**已 out-of-tree 解决 ✅**: 源码放
+  `scripts/aic3x-module/`, 上板原生编译成 `snd-aic3x.ko`, vermagic `6.6.98-vendor-sun60iw2` 与目标内核一致,
+  无硬依赖 (REGMAP_I2C/I2C/SND_SOC 全部 =y 内置)。**不要用 aic31xx**: 那是 AIC3100/3110 家族, Page 0
+  寄存器语义不同, 装上后 DAC 永远不会上电。
 - WiFi/BT: `CONFIG_AIC8800_WLAN_SUPPORT=m`, `CONFIG_AIC8800_BTLPM_SUPPORT=m` (与蓝牙三机制的假设一致)。
 
 1. ~~底图选定~~ ✅ Armbian trixie vendor 6.6.98 (上面)。
@@ -141,30 +142,30 @@ dl.armbian.com/orangepizero3w/archive/, Debian 13 + vendor 6.6.98 内核, glibc 
    - `audio-a733.dtbo`: twi0→okay + 新增 `tlv320aic3104@18`; i2s0_plat→okay; i2s0_mach name→`aic3104-hat`
      且 codec `sound-dai` phandle 被 `__local_fixups__` 正确 fixup (实测 636→新节点, cpu 317→i2s0_plat 原值不动)。
 3. 板侧 bring-up: `scripts/setup-board-a733.sh` (上游 `setup-board.sh` 的 A733 移植: 
-   overlay 安装到 /boot/overlay-user + user_overlays, ONNX Runtime, 音频 fail-soft (含 aic31xx 模块缺失检查), 
+   overlay 安装到 /boot/overlay-user + user_overlays, ONNX Runtime, 音频 fail-soft (含 aic3x 模块缺失检查), 
    蓝牙 UserspaceHID/--weird-ble/--pause-btd-on-pair, 板况报告)。镜像里放它, 
    首次开机调用, 或手工 `sudo ./setup-board-a733.sh`。
-4. 装包: 运行时二进制 (`build-runtime.sh` → `img/payload/runtime-bin/{robotd,robotctl,robotd.toml}`)+ aic31xx `.ko`; Studio 和标定模板等上板后再说。
+4. 装包: 运行时二进制 (`build-runtime.sh` → `img/payload/runtime-bin/{robotd,robotctl,robotd.toml}`)+ aic3x `.ko`; Studio 和标定模板等上板后再说。
 5. 首次开机脚本: 装 payload 里的 robotd 到 `/usr/local/bin` 并 enable 服务, 认串口, 板况报告。
 
 **用法** (在带 loop 设备的 Linux 上, WSL2 没有 /dev/loop 跑不了): 
 `sudo scripts/apply-rootfs.sh <base.img> [--module <.ko>] [--payload <dir>]` ——脚本自己 `sfdisk` 读分区偏移 (不写死 65536), losetup 挂载, 
 装两个 dtbo 到 `/boot/overlay-user/`, `armbianEnv.txt` 幂等写 `user_overlays=uart2-dxl audio-a733`, 
 放 `setup-board-a733.sh` 并生成 `microduck-firstboot.service` (首次开机 oneshot); `--module` 装
-内核模块 (如 aic31xx 的 .ko, 自动落 /lib/modules/<kver>/ 并 depmod); `--payload` 可选装额外产物。
+内核模块 (如 aic3x 的 .ko, 自动落 /lib/modules/<kver>/ 并 depmod); `--payload` 可选装额外产物。
 标准命令: 
 
 ```bash
 sudo scripts/apply-rootfs.sh <base.img> \
-     --module ../img/aic31xx-module/snd-soc-tlv320aic31xx.ko --payload ../img/payload
+     --module ../img/aic3x-module/snd-aic3x.ko --payload ../img/payload
 ```
 
-产物里应有: dtbo + `user_overlays` + setup 脚本 + firstboot 服务 + aic31xx.ko + depmod 索引 +
+产物里应有: dtbo + `user_overlays` + setup 脚本 + firstboot 服务 + snd-aic3x.ko + depmod 索引 +
 `robotd`/`robotctl`/`robotd.toml` payload。WSL2 下走 VHD 路线 (qemu-img → `wsl --mount --vhd` →
 `apply-rootfs.sh --mount` → 转回), 命令见 [05-bringup-runbook.md](05-bringup-runbook.md)。
 
 验收清单: 串口 console 可用 (排针 8/10)→ 板侧网络可用 → `/dev/ttyS2` 出现并能 1 Mbps 通信 →
-`arecord -l` 看到 codec (前置: aic31xx 内核模块装好)→ `robotd` 起来后 `robotctl status` 有 15 个关节 → Studio 页面能开。
+`arecord -l` 看到 codec (前置: aic3x 内核模块装好)→ `robotd` 起来后 `robotctl status` 有 15 个关节 → Studio 页面能开。
 
 **上板前的无真机冒烟**: `scripts/smoke-fake.sh` (host `--fake` + onnxruntime + fixture 策略 +
 robotctl 全链路)。2026-10-27 实测 5/5 通过: health → `robot healthy`, 50Hz 控制环 0 missed, 

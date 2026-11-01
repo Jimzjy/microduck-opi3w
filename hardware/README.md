@@ -9,7 +9,7 @@
 | `pinmap.md` | HAT-V5 信号 → A733 40-pin 重映射对照表 (含 DXL 走 11/13 的 uart2, I2S0 五脚) |
 | `hat-layout.md` | HAT 逐区说明: 电源, 音频, DXL 总线, ToF, 排针; 以及每处改动的理由 |
 | `imu-layout.md` | IMU 板: 连接器脚序, 电源, 数据通路, MCU 引脚, 固件来源 |
-| `overlay/` | A733 设备树 overlay: `uart2-dxl.dts` (打开 uart2 PB0/PB1 → 排针 11/13), `audio-a733.dts` (aic31xx 声卡) |
+| `overlay/` | A733 设备树 overlay: `uart2-dxl.dts` (打开 uart2 PB0/PB1 → 排针 11/13), `audio-a733.dts` (aic3x 声卡) |
 | `eda/HAT_REVA_SCH_OPI3W.eprj2` | HAT 原理图工程 (EasyEDA Pro), REV B, 已送厂。**本仓唯一自有的 EDA 工程** |
 | `datasheets/` | 厂商原始文档存档: 飞特 HD-1910-C001 规格书, Orange Pi Zero 3W 手册/原理图/位号图/DXF (含 SHA256 与用途说明, 见其 README) |
 

@@ -21,8 +21,8 @@
    HAT 侧改两根走线 (J4 焊盘 7/9 → 12/14), 内核侧加 overlay。见 [02-hat-porting.md](02-hat-porting.md)。
 2. **镜像底座**: `镜像 R1` 不可用, 改用 **Armbian trixie vendor (Debian 13 + 6.6.98 内核)**, 
    自己叠 dtbo / 脚本 / 运行时产物。见 [03-software-stack.md](03-software-stack.md) §B。
-3. **音频 codec**: 板载 TLV320AIC3104 在厂商内核里没编进去 (`# CONFIG_SND_SOC_TLV320AIC31XX is not set`), 
-   我们出一颗 `.ko` 随镜像安装 (vermagic 必须带 `-vendor-sun60iw2`)。
+3. **音频 codec**: 板载 TLV320AIC3104 在厂商内核里没编进去 (`# CONFIG_SND_SOC_TLV320AIC3X is not set`), 
+   我们出一颗 `.ko` (`scripts/aic3x-module/`) 随镜像安装 (vermagic 必须带 `-vendor-sun60iw2`)。
 4. **运行时**: 官方 `daemon-v0.17.9` 上补 Feetech 总线后端, 总线 IMU, 标定台架
     ([patches/](../patches/README.md)), 而不是沿用 kissqy 的老分叉。
 
@@ -33,7 +33,7 @@
 | 编译链 (Rust + aarch64 交叉编译) | ✅ `robotd` 9.6 MB / `robotctl` 7.7 MB, GLIBC 符号最高 2.39 |
 | 设备树 overlay (uart2 / 音频) | ✅ 编译 + `fdtoverlay` 回归验证, 对镜像真实 dtb 验证通过 |
 | HAT 移植 (引脚 + 供电) | ✅ REV B 已送厂 |
-| aic31xx codec 模块 | ✅ 交叉编译成功, vermagic 与目标内核逐字一致 |
+| aic3x codec 模块 | ✅ 上板原生编译 `snd-aic3x.ko`, vermagic 与目标内核逐字一致, 音频已出声 |
 | A733 系统镜像 | ✅ 已组装出成品 (不入库, 按 [05-bringup-runbook.md](05-bringup-runbook.md) 第 5 步产出); 待真机验收 |
 | 板侧依赖 (ONNX Runtime, GStreamer) | ⏳ 待板子到手 |
 | 装配 / 标定 / 试走 | ⏳ 需实物 |

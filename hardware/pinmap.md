@@ -79,7 +79,7 @@
   上电态不为高; 我们这版留空。
 - 排针 14/16/26/27/28 (PL2/PL3/PL4/PL5)挂 arisc/常开域, 做 GPIO 备用前先确认主核可控。
 - 软件侧还差: twi0 使能 (codec 0x18 + ToF), uart2 使能 (`hardware/overlay/uart2-dxl.dts`), 
-  I2S0 + aic31xx 驱动, 按需 pwm。
+  I2S0 + aic3x 驱动, 按需 pwm。
 
 ### I2S / UART 在 A733 上能否配出来 (厂商内核 BSP 实证, 2026-10-25)
 
@@ -90,8 +90,10 @@
 - 控制器 `i2s0_plat@2532000` (`allwinner,sunxi-snd-plat-i2s`)带 tx/rx DMA 与 PLL_AUDIO 时钟, `pinctrl-0` 已把这 5 个 pin 组全挂上, 只差 `status = "okay"`。
 - machine 节点 `i2s0_mach` (`allwinner,sunxi-snd-mach`)里的 `soundcard-mach,codec { };` 是**空节点**, 
   就是留给外挂 codec 填 `sound-dai` 的。
-- codec 驱动 `sound/soc/codecs/tlv320aic31xx.c` 在厂商内核树内存在。overlay 三件套即: i2c 上挂 codec 节点, `&i2s0_plat` 置 okay, `&i2s0_mach` 的 codec 子节点指向它。
-- 仍需上板确认: 镜像内核有没编 `CONFIG_SND_SOC_TLV320AIC31XX` 与 sunxi sound mach (`zcat /proc/config.gz | grep -i aic31`)。
+- codec 驱动 `sound/soc/codecs/tlv320aic3x.c` 在厂商内核树内存在 (AIC3x 家族; 同目录的
+  `tlv320aic31xx.c` 是 AIC3100/3110 家族, 不适用)。overlay 三件套即: i2c 上挂 codec 节点, `&i2s0_plat` 置 okay, `&i2s0_mach` 的 codec 子节点指向它。
+- 已上板确认: 镜像内核没编 `CONFIG_SND_SOC_TLV320AIC3X`, 驱动以 out-of-tree 的 `snd-aic3x.ko`
+  加载 (`scripts/aic3x-module/`), 声卡为 card 1 `aic3104hat`。
 
 **UART: 可配, 两条路都在**
 - 9 个 uart 控制器统一 `allwinner,uart-v100` (uart0@0x2500000 … uart8@0x7081000), 都能 overlay 挂 pin 组开启, 1 Mbps + DMA 无碍。

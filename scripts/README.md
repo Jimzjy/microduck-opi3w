@@ -9,10 +9,12 @@
 | `eda-db-inspect.py` | 只读解析 `.eprj2` (SQLite 工程库), 列工程结构与分支, 用于快速核对工程内容 |
 | `eda-db-content.py` | 从 `.eprj2` 里提取某类对象的明细 |
 | `fetch-studio.ps1` | 按固定 commit 稀疏拉取 replica 的 `software/studio`, 可选推到板子上。新版启动: `python3 -m studio serve --robotd unix:<sock> --listen host:port`, 依赖 `python3-starlette` + `python3-uvicorn` |
-| `setup-board-a733.sh` | A733 板侧 bring-up (在板子上跑): uart2 overlay + ONNX Runtime + 音频 fail-soft (含 aic31xx 内核模块检查)+ 蓝牙手柄 + 板况报告。对照上游 `setup-board.sh`, 去掉了全部 RK3566 专属步骤。用法见脚本头注释 |
+| `setup-board-a733.sh` | A733 板侧 bring-up (在板子上跑): uart2 overlay + ONNX Runtime + 音频 fail-soft (含 aic3x 内核模块检查)+ 蓝牙手柄 + 板况报告。对照上游 `setup-board.sh`, 去掉了全部 RK3566 专属步骤。用法见脚本头注释 |
 | `apply-rootfs.sh` | 把 overlay dtbo + 板侧脚本 + firstboot 服务装进 Armbian 底图 img, 可选 `--module <.ko>` (装进 /lib/modules 并 depmod), `--payload <目录>`, `--bootloader <官方镜像.img>` (移植官方 boot0/u-boot 裸区, 1GB 内存版必选, 见 docs/05 §5)。支持 `--mount <挂载点>` (WSL 的 VHD 路线)。用法见脚本头注释 |
-| `build-aic31xx-module.sh` | out-of-tree 交叉编译 `snd-soc-tlv320aic31xx.ko` (A733 音频 codec 驱动, vendor 内核没编)。记录了 headers 包全部手工补丁 (fixdep, modpost, utsrelease 回写)。在 Linux (root)跑, WSL 亦可, 用法见脚本头注释 |
-| `aic31xx-build-aids/` | 上面脚本的配套留档: `arm64-tools-Makefile` (headers 缺的 kapi 生成器 Makefile), `build-modpost-manual2.sh` (手工构建 kbuild modpost, 含 devicetable-offsets.h 的 .s→.h 转换) |
+| `aic3x-module/` | 板载 TLV320AIC3104 的内核驱动源码 (`snd-aic3x`), vendor 内核没编, 上板原生编译成 `.ko`。构建步骤见该目录 `README.md` |
+| `aic3104-mixer.sh` | 音频 mixer 一键配置 (capture 路由 + PGA + DAC→Line 增益 + 喇叭音量), 由 `aic3104-mixer.service` 开机调用 |
+| `aic3104-mixer.service` | 上面脚本的 systemd unit (`/etc/systemd/system/aic3104-mixer.service`) |
+| `mic-selftest.py` | 麦克风自检: 播一条不中断的音调流同时录音, 用 Goertzel 判拾音, 输出 `MICROPHONE PICKS UP SOUND` / `NO PICKUP` |
 | `build-runtime.sh` | 交叉编译运行时 `robotd`/`robotctl` (aarch64, 源 = `microduck-runtime` 仓 `opi3w-feetech` 分支 = 官方 0.17.9 + 我们的补丁)并布进 `$MICRODUCK_IMG/payload/runtime-bin/` (默认仓库同级的 `img/`)。先跑受影响 crate 测试再出产物, `SKIP_TEST=1` 可跳。产物 GLIBC 符号最高要求 2.39 (底图 trixie 的 2.41 满足); onnxruntime 静态链入板上无需装库。**二进制不进 git** |
 | `smoke-fake.sh` | 全链路台架冒烟测试 (host x86_64, 无需真机): robotd `--fake` + onnxruntime + 测试 fixture 策略, 用 robotctl 验 health/init/mode/monitor/quack fail-soft。前置: host 编译 robotd/robotctl + onnxruntime x64 ≥1.23 解到 `$ORT_DIR` (默认 /root/ort-x64)。详见脚本头注释 |
 | `smoke-commissioning.sh` | 标定台架冒烟: `robotd --fake --commissioning` 起来, 策略被关掉, 控制环在跑, `health` 回话。前置只需 host 编译 robotd/robotctl (debug) |
@@ -39,10 +41,10 @@ sudo scripts/apply-rootfs.sh <base.img>            # 底图见 docs/05 第 5 步
 
 WSL2 没有 loop 设备也能跑——走 `--mount` 模式: img 用 `qemu-img convert -O vpc` 转 VHD, 
 `wsl --mount --vhd xx.vhd --partition 1` 挂进 WSL, 然后
-`sudo scripts/apply-rootfs.sh --mount /mnt/wsl/<挂载点> --module ../img/aic31xx-module/snd-soc-tlv320aic31xx.ko --payload ../img/payload`, 
+`sudo scripts/apply-rootfs.sh --mount /mnt/wsl/<挂载点> --module ../img/aic3x-module/snd-aic3x.ko --payload ../img/payload`, 
 改完 `wsl --unmount` + `qemu-img convert -O raw` 转回 img 烧卡。
 两条路线 (Linux loop / WSL2 + VHD)产出的镜像都包含: dtbo + `user_overlays` + setup 脚本 +
-firstboot 服务 + aic31xx.ko + depmod + `robotd`/`robotctl`/`robotd.toml` payload。
+firstboot 服务 + snd-aic3x.ko + depmod + `robotd`/`robotctl`/`robotd.toml` payload。
 
 镜像里的运行时是**手工安装** (不走官方 updaterd 签名链): payload 里若有
 `runtime-bin/robotd`, 板上首开 `setup-board-a733.sh` 会装 `/usr/local/bin/robotd`, 
@@ -50,24 +52,27 @@ firstboot 服务 + aic31xx.ko + depmod + `robotd`/`robotctl`/`robotd.toml` paylo
 换运行时 = 重跑 `build-runtime.sh` + `apply-rootfs.sh --payload` 再刷一次 (或板上直接覆盖二进制重跑 setup)。
 
 镜像分区/内核信息与验收清单见 [../docs/03-software-stack.md](../docs/03-software-stack.md) C 节。
-已知缺口: Armbian vendor 6.6.98 内核没编 `SND_SOC_TLV320AIC31XX`, 音频要响需 out-of-tree
-编 `snd-soc-tlv320aic31xx.ko`。
+已知缺口: Armbian vendor 6.6.98 内核没编 `SND_SOC_TLV320AIC3X`, 音频要响需 out-of-tree
+编 `snd-aic3x.ko`。
 
-## aic31xx 模块
+## aic3x 模块与音频
+
+驱动源码在 `aic3x-module/`, 上板原生编译 (不需要交叉工具链, 也不需要给 headers 打补丁):
 
 ```bash
-sudo bash scripts/build-aic31xx-module.sh \
-    <linux-headers-vendor-sun60iw2_*.deb> <厂商树 tlv320aic31xx 源码目录>
+cd scripts/aic3x-module
+install -D -m 644 tlv320aic3x.h /usr/src/linux-headers-$(uname -r)/include/sound/tlv320aic3x.h
+printf 'obj-m := snd-aic3x.o\nsnd-aic3x-y := tlv320aic3x.o tlv320aic3x-i2c.o\n' > Makefile
+make -C /lib/modules/$(uname -r)/build M=$PWD modules
+install -D -m 644 snd-aic3x.ko /lib/modules/$(uname -r)/extra/snd-aic3x.ko
 ```
 
-产物 vermagic 必须逐字为 `6.6.98-vendor-sun60iw2 SMP preempt mod_unload aarch64` (脚本末尾自检); 
-依赖 (REGMAP_I2C/I2C/SND_SOC/SND_SOC_I2C_AND_SPI)全部 =y 内置, 模块无硬依赖。
-三个坑 (脚本里都有对应处理): ①`modules_prepare` 死循环在 resolve_btfids, 不跑完, 只补 fixdep; 
-②modpost 要手工构建 (headers 缺); ③prepare 会把 utsrelease 重写成 `6.6.98` 丢 `-vendor-sun60iw2`
-后缀导致板上拒载, 编译前强制写回。
+产物 vermagic 必须逐字为 `6.6.98-vendor-sun60iw2 SMP preempt mod_unload aarch64` (对比在跑的
+`/lib/modules/$(uname -r)/extra/snd-aic3x.ko`)。依赖 (REGMAP_I2C/I2C/SND_SOC) 全部 =y 内置, 模块无硬依赖。
 
-镜像安装: `sudo scripts/apply-rootfs.sh <img> --module snd-soc-tlv320aic31xx.ko`
- (自动放 `/lib/modules/<kver>/kernel/sound/soc/codecs/` 并 depmod)。
+**不要用 aic31xx**: 那是 AIC3100/3110 家族, Page 0 寄存器语义不同, 装上后 DAC 永远不上电。
+
+音频的 mixer 配置、已知陷阱和验收方法见 [../docs/06-audio-aic3104.md](../docs/06-audio-aic3104.md)。
 
 ## 板子到手后
 

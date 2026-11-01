@@ -81,20 +81,27 @@ git switch -c opi3w-feetech
 
 验证: `file ../img/payload/runtime-bin/robotd` 应报 `ELF 64-bit LSB pie executable, ARM aarch64`。
 
-## 4. 编 aic31xx 音频模块
+## 4. 编 aic3x 音频模块
 
-板载 codec 在内核里没编进去 (`# CONFIG_SND_SOC_TLV320AIC31XX is not set`), 要自己出一个 `.ko`。
-脚本是"人工流程的脚本化", 要两个输入: Armbian 的 headers 包, 厂商树的驱动源码。
+板载 TLV320AIC3104 属于 AIC3x 家族, 要的是 `snd-soc-tlv320aic3x`; 厂商内核没编进去
+(`# CONFIG_SND_SOC_TLV320AIC3X is not set`), 要自己出一个 `.ko`。**不要用 aic31xx**
+(那是 AIC3100/3110 家族, Page 0 寄存器语义不同, 装上后 DAC 永远不会上电)。
+
+源码在 `scripts/aic3x-module/`, 上板原生编译 (`/lib/modules/$(uname -r)/build` 必须存在):
 
 ```bash
-# 1) headers 包 (apt.armbian.com 的 linux-headers-vendor-sun60iw2_*_arm64.deb)
-# 2) 驱动源码: orangepi-xunlong/linux-orangepi 分支 orange-pi-6.6-sun60iw2 里的
-#    sound/soc/codecs/tlv320aic31xx.c + tlv320aic31xx.h (记下 commit)
-bash scripts/build-aic31xx-module.sh <linux-headers-*.deb> <驱动源码目录> ../img/aic31xx-module
+cd scripts/aic3x-module
+install -D -m 644 tlv320aic3x.h /usr/src/linux-headers-$(uname -r)/include/sound/tlv320aic3x.h
+printf 'obj-m := snd-aic3x.o\nsnd-aic3x-y := tlv320aic3x.o tlv320aic3x-i2c.o\n' > Makefile
+make -C /lib/modules/$(uname -r)/build M=$PWD modules
+install -D -m 644 snd-aic3x.ko /lib/modules/$(uname -r)/extra/snd-aic3x.ko
+depmod -a
 ```
 
-**唯一要盯的是 vermagic**: 必须是 `6.6.98-vendor-sun60iw2 SMP preempt mod_unload aarch64`, 
-少了 `-vendor-sun60iw2` 后缀上板会拒载 (`modules_prepare` 会把 release 重写成 `6.6.98`, 脚本已强制写回并自检)。
+**唯一要盯的是 vermagic**: 必须是 `6.6.98-vendor-sun60iw2 SMP preempt mod_unload aarch64`,
+少了 `-vendor-sun60iw2` 后缀上板会拒载 (`modinfo snd-aic3x.ko | grep vermagic`)。
+
+音频的完整配置与验收见 [06-audio-aic3104.md](06-audio-aic3104.md)。
 
 ## 5. 组装镜像
 
@@ -112,7 +119,7 @@ the second boot`, 死在进 U-Boot 之前 (2GB 及以上不受影响)。解法: 
 
 ```bash
 sudo scripts/apply-rootfs.sh Armbian_26.8.1_....img \
-     --module ../img/aic31xx-module/snd-soc-tlv320aic31xx.ko \
+     --module ../img/aic3x-module/snd-aic3x.ko \
      --payload ../img/payload \
      --bootloader /path/to/Orangepizero3w_1.0.2_debian_trixie_server_linux6.6.98.img
 ```
@@ -123,7 +130,7 @@ sudo scripts/apply-rootfs.sh Armbian_26.8.1_....img \
 qemu-img convert -O vpc Armbian_26.8.1_....img build.vhd
 wsl --mount --vhd $PWD\build.vhd --partition 1
 # 挂载点形如 /mnt/wsl/<路径压平>/; 第一次报"磁盘已在使用"就先 wsl --unmount
-wsl -d Debian -u root -- bash -c 'cd /mnt/c/.../microduck-opi3w && scripts/apply-rootfs.sh --mount /mnt/wsl/<挂载点> --module ../img/aic31xx-module/snd-soc-tlv320aic31xx.ko --payload ../img/payload'
+wsl -d Debian -u root -- bash -c 'cd /mnt/c/.../microduck-opi3w && scripts/apply-rootfs.sh --mount /mnt/wsl/<挂载点> --module ../img/aic3x-module/snd-aic3x.ko --payload ../img/payload'
 wsl --unmount $PWD\build.vhd
 qemu-img convert -f vpc -O raw build.vhd microduck-opi3w-base.img
 ```
@@ -163,14 +170,17 @@ dmesg | grep -i ttyS2                                # 存在且被 robotd 打�
 # ③ 总线 IMU (ID 200 必须在舵机之后应答)
 robotctl --robot-socket /run/robotd.sock monitor     # imu.ready 在约 25 帧后转 true
 # ④ 音频
-aplay -l | grep -i aic31xx
+aplay -l | grep -i aic3104                           # card 1: aic3104hat
+amixer -c 1 cget numid=11                            # 118 = 0.00 dB (不能是默认的 6 = -56 dB)
+python3 scripts/mic-selftest.py                      # 期望 MICROPHONE PICKS UP SOUND
 ```
 
 三项常见失败: 
 
 - `ttyS2` 没起来 → overlay 没生效, 查 `/boot/armbianEnv.txt` 的 `user_overlays`
 - IMU 一直 `ready=false` → ID 200 没应答, 或 `[bus.feetech] imu` 没打开; 先确认 ID 200 排在 15 颗舵机**之后**
-- `aplay -l` 空 → `.ko` vermagic 不对 (`dmesg | grep -i aic31`)
+- `aplay -l` 空 → `.ko` vermagic 不对 (`dmesg | grep -i aic3`), 或 overlay 的 `compatible` 与驱动不匹配
+- 有 card 1 但没声音 → `amixer -c 1 cget numid=11` 是 6 (即 -56 dB), 执行 `scripts/aic3104-mixer.sh`
 
 ## 8. 标定
 

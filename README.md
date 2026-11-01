@@ -52,6 +52,7 @@ docs/
   02-hat-porting.md     HAT 移植方案与已执行的供电/引脚改动
   03-software-stack.md  软件层: 运行时 / Studio / 镜像 / 训练, 谁在哪, 怎么装
   05-bringup-runbook.md 从零复刻: clone -> 编译 -> 镜像 -> 烧卡 -> 验收 -> 标定
+  06-audio-aic3104.md   音频: codec 接线, 驱动/overlay 要点, mixer, 自检与踩坑
 patches/
   runtime-opi3w-feetech.patch   我们运行时分支的完整差分 (打在上游 daemon-v0.17.9 上)
   README.md                     基线与结果树哈希, apply 步骤, 内容清单
@@ -70,14 +71,15 @@ firmware/               git submodule: kissqy/Microduck-kissqy @ eccc2fdb
 | 项 | 状态 |
 | --- | --- |
 | 运行时移植 (官方 0.17.9 + 补丁) | ✅ 554 测试通过; host 端 `--fake` 全链路冒烟 5/5 绿; 补丁已验证可精确重建该分支 |
-| 飞特总线 IMU (ID 200) | ✅ 代码 + 测试过; 上板待验 |
+| 飞特总线 IMU (ID 200) | ✅ 上板实测: `ping 200` 回 `ffffc8020035`, 陀螺数据实时变化 |
 | 标定链路 (busStatus / busCommand / `--commissioning`) | ✅ 完成; 台架冒烟 healthy; `startupSubscribe` 不做 (Studio 优雅降级) |
 | aarch64 交叉编译 | ✅ `robotd` 9.6 MB / `robotctl` 7.7 MB, GLIBC 2.39 (底图 2.41 满足) |
 | HAT 原理图 | ✅ REV B 已送厂 |
 | 排针重映射 + overlay | ✅ 编译与应用验证通过 |
-| aic31xx codec 内核模块 | ✅ vermagic 与 vendor 内核一致, 随镜像布防 |
+| aic3x codec 内核模块 | ✅ 上板原生编译 `snd-aic3x.ko`, vermagic 与 vendor 内核一致 |
+| 音频 (喇叭 + 麦克风) | ✅ 出声与录音实测通过, mixer 由开机服务持久化 ([docs/06](docs/06-audio-aic3104.md)) |
 | A733 系统镜像 | ✅ 组装流程闭环 (含 1GB bootloader 修复), **真机首启验收通过**: robotd 开机自启, health 正常回话 |
-| 板侧依赖 (ONNX Runtime, GStreamer) / 音频实测 / 装配 / 标定 / 试走 | ⏳ 等 HAT 到货与实物装配 |
+| 板侧依赖 (ONNX Runtime, GStreamer) / 装配 / 标定 / 试走 | ⏳ 等实物装配与标定 |
 
 ## 许可
 

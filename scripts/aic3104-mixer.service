@@ -1,0 +1,11 @@
+[Unit]
+Description=aic3104 HAT mixer defaults
+After=sound.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/aic3104-mixer.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
