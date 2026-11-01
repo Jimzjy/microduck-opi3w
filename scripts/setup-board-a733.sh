@@ -426,7 +426,7 @@ if [ "$needs_reboot" = 1 ]; then
     say ""
     say "changes pending a reboot. After it:"
     say "  1. $0 --status                  # /dev/ttyS2 应出现且 owner=free"
-    say "  2. stty -F ${MOTOR_PORT} 1000000 raw -echo -crtscts"
+    say "  2. stty -F ${MOTOR_PORT} 500000 raw -echo -crtscts"
     say "  3. 接上 HAT 后用 robotctl 或手动 sync_read ping 一只舵机"
 else
     say ""

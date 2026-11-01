@@ -11,8 +11,8 @@
 | 项 | 值 |
 | --- | --- |
 | 基线 | `pollen-robotics/microduck` tag `daemon-v0.17.9` = `96b89d8613f06722c1d64ce75ab0d7124fed9d8f` |
-| 打完补丁后 | 15 个 crate 的树与我们分支 `opi3w-feetech` HEAD `2b1e43c` **完全一致** (`git write-tree` = `0e6e6b4725e9b63e37390b15bf6317e0dcf72333`) |
-| 规模 | 16 个文件, `+3834 / −24` (含 4 个新文件) |
+| 打完补丁后 | 15 个 crate 的树与我们分支 `opi3w-feetech` HEAD `3c74775` **完全一致** (`git write-tree` = `41403c05b8dbe610ca596145353db4bbb828536d`) |
+| 规模 | 16 个文件, `+3856 / −25` (含 4 个新文件) |
 
 ## 用法
 
@@ -35,7 +35,7 @@ cargo test -p duck-ipc-proto -p robotd-params -p duck-control -p robotd   # 554 
 | --- | --- |
 | `duck-control/src/bus_feetech.rs` (新) | 飞特 STS 总线后端: 寄存器同步读写, `p_scale` 换算, 逐颗电压/温度, 总线 IMU (ID 200, 块 `56/15`, 前 12 字节复用 `SflpDecoder`) |
 | `duck-control/src/bus_select.rs` (新) | `BusProtocol` 按配置在 Dynamixel 2.0 与 Feetech STS 之间选一个 |
-| `duck-control/src/{bus,io,lib,model,sim}.rs` | `SlowSensors.joint_volts`, `cached_slow`, 标定零位/方向/限位, `sim` 补 `joint_volts` |
+| `duck-control/src/{bus,io,lib,model,sim}.rs` | `SlowSensors.joint_volts`, `cached_slow`, 标定零位/方向/限位, `sim` 补 `joint_volts`; **总线 500 kbps** (`BAUD_RATE = 500_000` + `FEETECH_BAUD_REGISTER = 1`, 见下) |
 | `duck-ipc-proto/src/lib.rs` | `robot.busStatus` / `robot.busCommand` 的调用与响应类型 (`BusStatus`, `BusCommandParams`, `BusCalibration` …) |
 | `robotd-params/src/calibration.rs` (新) | 标定文件 `hd1910-calibration.toml` 的解析 / 校验 / 回写 |
 | `robotd-params/src/{lib,registry}.rs` | `[bus.feetech]` 配置项 (含 `calibration` 路径) |
@@ -43,6 +43,15 @@ cargo test -p duck-ipc-proto -p robotd-params -p duck-control -p robotd   # 554 
 | `robotd/src/main.rs` | 总线后端选择, 标定装载, `busStatus` 快照拼装, `busCommand` 异步派发, `--commissioning` 模式 |
 | `docs/design/robotd-design.md` | §3.6 标定台架的机制说明 |
 | `deploy/robotd.toml` | `[bus.feetech]` 的注释与默认值 |
+
+## 总线为什么是 500 kbps
+
+A733 的 uart2 时钟来自固定的 24 MHz, vendor 的 uart-ng 驱动没有小数分频, 1 Mbps 会被取整成
+750 kbps, 总线上一颗舵机都不应答 (而且 dmesg 每秒刷 `baud 500000 beyond rance` 这类提示)。
+500 kbps 能整除 (`24 MHz / 16 / 3`), 也是飞特的标准档位。
+
+**舵机侧要同步**: EEPROM 寄存器 6 (`baudrate`) 设成 `1` (500 kbps), 出厂默认是 `0` (1 Mbps)。
+`check_registers` 启动时会把不一致的舵机自动改成 `1`。
 
 ## 以后怎么维护
 

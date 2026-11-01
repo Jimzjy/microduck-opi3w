@@ -56,7 +56,7 @@ onnxruntime 由 ort crate 静态链入, 板上无需 libonnxruntime.so。
 | robotd.toml | `/etc/robot/robotd.toml` (已存在不覆盖) | payload 里的 `deploy/robotd.toml` 默认版 |
 
 > 舵机串口是 `/dev/ttyS2` (PB0/PB1 = 排针 11/13), 由 `uart2-dxl.dts` 打开; 半双工方向由 HAT 上的
-> U6/U7/Q1 硬件自动切换, 内核侧就是普通 1 Mbps 串口, 不需要 RS485 ioctl。
+> U6/U7/Q1 硬件自动切换, 内核侧就是普通 500 kbps 串口, 不需要 RS485 ioctl。
 
 ## B. Microduck Studio (从 replica 按需拉取)
 
@@ -164,7 +164,7 @@ sudo scripts/apply-rootfs.sh <base.img> \
 `robotd`/`robotctl`/`robotd.toml` payload。WSL2 下走 VHD 路线 (qemu-img → `wsl --mount --vhd` →
 `apply-rootfs.sh --mount` → 转回), 命令见 [05-bringup-runbook.md](05-bringup-runbook.md)。
 
-验收清单: 串口 console 可用 (排针 8/10)→ 板侧网络可用 → `/dev/ttyS2` 出现并能 1 Mbps 通信 →
+验收清单: 串口 console 可用 (排针 8/10)→ 板侧网络可用 → `/dev/ttyS2` 出现并能 500 kbps 通信 →
 `arecord -l` 看到 codec (前置: aic3x 内核模块装好)→ `robotd` 起来后 `robotctl status` 有 15 个关节 → Studio 页面能开。
 
 **上板前的无真机冒烟**: `scripts/smoke-fake.sh` (host `--fake` + onnxruntime + fixture 策略 +

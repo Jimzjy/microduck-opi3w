@@ -79,7 +79,7 @@ U3 SN74LVC2G241DCUR (双缓冲, OE 均低有效)
 PB7 不给 2OE 会让接收缓冲关掉, 表现为"主机完全收不到 IMU 回包"。协议 (DXL ID 200)两边兼容, 
 但**引脚表不兼容**, 认板不认协议。
 
-上电验证: 总线 1 Mbps 8N1, 发 ID 200 的 READ 应答应有回音; 主控侧看到的就是
+上电验证: 总线 500 kbps 8N1, 发 ID 200 的 READ 应答应有回音; 主控侧看到的就是
 `robotctl --robot-socket /run/robotd.sock status` 里的 IMU ready。
 
 ## 6. 与 kissqy `imu_to_dxl_RevA` 的差异 (排障时会遇到旧资料)

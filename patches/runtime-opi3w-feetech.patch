@@ -188,10 +188,10 @@ index da13fa7..c86b8a7 100644
  
 diff --git a/duck-control/src/bus_feetech.rs b/duck-control/src/bus_feetech.rs
 new file mode 100644
-index 0000000..fb142bf
+index 0000000..f24306e
 --- /dev/null
 +++ b/duck-control/src/bus_feetech.rs
-@@ -0,0 +1,1063 @@
+@@ -0,0 +1,1064 @@
 +//! The Feetech bus — STS/SMS-protocol servos (HD-1910) in place of the XL330s.
 +//!
 +//! The same shape as [`crate::bus`]: one `sync_read` per tick, one `sync_write` of goal
@@ -231,7 +231,8 @@ index 0000000..fb142bf
 +use crate::imu::{ImuData, SflpDecoder, IMU_BLOCK_LEN};
 +use crate::io::{ImuStale, IoError, JointTargets, Result, RobotIo, Sensors, SlowSensors};
 +use crate::model::{
-+    BAUD_RATE, FACTORY_ID, FEETECH_EXPECTED_MODE, IMU_DXL_ID, JOINT_IDS, JOINT_NAMES, NUM_JOINTS,
++    BAUD_RATE, FACTORY_ID, FEETECH_BAUD_REGISTER, FEETECH_EXPECTED_MODE, IMU_DXL_ID, JOINT_IDS,
++    JOINT_NAMES, NUM_JOINTS,
 +};
 +
 +/// What `rustypot` returns. Its own alias is private, so it is spelled out here.
@@ -537,14 +538,14 @@ index 0000000..fb142bf
 +
 +        let mut fixed = 0;
 +        let baud = first(self.controller.read_baudrate(id), "baudrate", id)?;
-+        if baud != 0 {
++        if baud != FEETECH_BAUD_REGISTER {
 +            tracing::warn!(
 +                id,
 +                got = baud,
-+                want = 0,
++                want = FEETECH_BAUD_REGISTER,
 +                "correcting motor baud rate register"
 +            );
-+            self.with_eeprom_unlocked(id, |c| c.write_baudrate(id, 0))?;
++            self.with_eeprom_unlocked(id, |c| c.write_baudrate(id, FEETECH_BAUD_REGISTER))?;
 +            fixed += 1;
 +        }
 +        Ok(fixed)
@@ -1505,10 +1506,10 @@ index e4769b5..a167edf 100644
  pub mod imu;
  pub mod io;
 diff --git a/duck-control/src/model.rs b/duck-control/src/model.rs
-index 731c082..9a15012 100644
+index 731c082..9584ed1 100644
 --- a/duck-control/src/model.rs
 +++ b/duck-control/src/model.rs
-@@ -96,8 +96,13 @@ pub fn mouth_target(open: f64) -> f64 {
+@@ -96,11 +96,20 @@ pub fn mouth_target(open: f64) -> f64 {
      MOUTH_CLOSED + open * (MOUTH_OPEN - MOUTH_CLOSED)
  }
  
@@ -1523,8 +1524,16 @@ index 731c082..9a15012 100644
 +/// 15-byte fast block at 56 ([`crate::bus_feetech`]).
  pub const IMU_DXL_ID: u8 = 200;
  
- pub const BAUD_RATE: u32 = 1_000_000;
-@@ -149,6 +154,14 @@ pub fn homing_offset(id: u8) -> i32 {
+-pub const BAUD_RATE: u32 = 1_000_000;
++/// Bus speed. The A733 clocks uart2 from a fixed 24 MHz (`sys24M -> apb-uart -> uart2`) and
++/// the vendor `uart-ng` driver has no fractional divisor, so 1 Mbps divides down to 750 kbps
++/// in hardware and nothing on the bus answers. 500 kbps divides exactly
++/// (`24 MHz / 16 / 3`) and is a first-class Feetech rate (register 6 = 1).
++pub const BAUD_RATE: u32 = 500_000;
+ 
+ /// What a servo answers as out of the box: ID 1 at 57 600 baud. Both are deliberately unused
+ /// on this bus — no joint is ID 1 and nothing runs at that speed — which is what lets a
+@@ -149,6 +158,18 @@ pub fn homing_offset(id: u8) -> i32 {
      }
  }
  
@@ -1535,6 +1544,10 @@ index 731c082..9a15012 100644
 +/// commanding a fresh target every tick wants. Mode 0 is the ordinary position servo. Checked
 +/// and reported at startup, never written — see [`crate::bus_feetech::FeetechIo::check_registers`].
 +pub const FEETECH_EXPECTED_MODE: u8 = 4;
++
++/// Register 6 (`baudrate`) value on the STS/SMS family that matches [`BAUD_RATE`]:
++/// 1 = 500 kbps (`0` would be 1 Mbps, `2` = 250 kbps).
++pub const FEETECH_BAUD_REGISTER: u8 = 1;
 +
  /// Index of a joint by name. Linear scan over 15 entries, used at startup and in tests.
  pub fn joint_index(name: &str) -> Option<usize> {
@@ -1555,7 +1568,7 @@ index a56e3b0..32240fd 100644
      }
  }
 diff --git a/duck-ipc-proto/src/lib.rs b/duck-ipc-proto/src/lib.rs
-index f64c7e1..0730a7f 100644
+index f64c7e1..f0b8bb9 100644
 --- a/duck-ipc-proto/src/lib.rs
 +++ b/duck-ipc-proto/src/lib.rs
 @@ -711,6 +711,27 @@ pub mod method {
@@ -1664,7 +1677,7 @@ index f64c7e1..0730a7f 100644
              Call::RobotDo(DoParams {
                  skill: "ground_pick".into(),
              }),
-@@ -2497,6 +2540,182 @@ pub struct DoParams {
+@@ -2497,6 +2540,192 @@ pub struct DoParams {
      pub skill: Skill,
  }
  
@@ -1759,6 +1772,11 @@ index f64c7e1..0730a7f 100644
 +    pub imu_mount_verified: bool,
 +    /// Which board, and how it identifies itself.
 +    pub imu_bus: Option<BusImuBus>,
++    /// IMU decoder generation the configuration asks for: `"legacy"` or `"qinmo"`.
++    /// We only ship legacy; stating it explicitly keeps newer Studio builds from
++    /// having to infer the profile from absent fields.
++    #[serde(default)]
++    pub configured_imu_profile: Option<String>,
 +    /// Reads that missed at least one servo since startup.
 +    pub missing_total: u64,
 +    /// Reads in a row that missed at least one servo.
@@ -1824,6 +1842,11 @@ index f64c7e1..0730a7f 100644
 +    pub board: String,
 +    /// Model and firmware words the board reports, in order.
 +    pub identity: Vec<String>,
++    /// IMU decoder generation: `"legacy"` (SFLP block) or `"qinmo"`. We only
++    /// speak legacy; naming the field keeps newer Studio builds from treating
++    /// its absence as an unsupported mixed report.
++    #[serde(default)]
++    pub profile: String,
 +}
 +
 +/// The Feetch HD-1910 calibration, as far as the wire can tell.
@@ -1847,7 +1870,7 @@ index f64c7e1..0730a7f 100644
  /// Standing body pose offsets. Continuous intent — see [`method::ROBOT_POSE`].
  ///
  /// The trained ranges are small: z −0.025..+0.010 m, roll and pitch ±0.26 rad. The robot
-@@ -2525,6 +2744,66 @@ impl Default for PoseParams {
+@@ -2525,6 +2754,66 @@ impl Default for PoseParams {
      }
  }
  
@@ -1914,7 +1937,7 @@ index f64c7e1..0730a7f 100644
  /// Mouth opening. Continuous intent — see [`method::ROBOT_MOUTH`].
  #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
  #[serde(default, deny_unknown_fields)]
-@@ -5827,7 +6106,7 @@ mod tests {
+@@ -5827,7 +6116,7 @@ mod tests {
      fn every_call_covers_every_variant() {
          assert_eq!(
              every_call().len(),
@@ -2985,7 +3008,7 @@ index 0000000..6043507
 +    }
 +}
 diff --git a/robotd/src/main.rs b/robotd/src/main.rs
-index c195f08..6473a56 100644
+index c195f08..0ed2f5c 100644
 --- a/robotd/src/main.rs
 +++ b/robotd/src/main.rs
 @@ -19,6 +19,7 @@
@@ -3466,7 +3489,7 @@ index c195f08..6473a56 100644
              shutdown: AtomicBool::new(false),
              flashlight: AtomicU8::new(0),
              has_flashlight: leds::flashlight_fitted(),
-@@ -928,6 +1364,329 @@ impl RobotState {
+@@ -928,6 +1364,331 @@ impl RobotState {
          describe(true, false, None)
      }
  
@@ -3567,7 +3590,9 @@ index c195f08..6473a56 100644
 +                    protocol: i.source.clone(),
 +                    board: "imu_to_dxl".to_owned(),
 +                    identity: Vec::new(),
++                    profile: "legacy".to_owned(),
 +                }),
++                configured_imu_profile: Some("legacy".to_owned()),
 +                missing_total: self.missing_total.load(Ordering::Relaxed),
 +                consecutive_missing: consecutive_errors,
 +                command_clamps_total: self.command_clamps_total.load(Ordering::Relaxed),
@@ -3796,7 +3821,7 @@ index c195f08..6473a56 100644
      /// The loop's own numbers, as the readout reports them.
      fn loop_health(&self) -> proto::LoopHealth {
          let hz = f64::from_bits(self.achieved_hz.load(Ordering::Relaxed));
-@@ -1031,6 +1790,13 @@ async fn main() -> ExitCode {
+@@ -1031,6 +1792,13 @@ async fn main() -> ExitCode {
      if args.no_policy {
          params.policy.enabled = false;
      }
@@ -3810,7 +3835,7 @@ index c195f08..6473a56 100644
  
      if let Some(Command::Init { duration }) = args.command {
          // init opens the motor bus itself. Keep ownership until the whole ramp returns,
-@@ -1058,6 +1824,18 @@ async fn main() -> ExitCode {
+@@ -1058,6 +1826,18 @@ async fn main() -> ExitCode {
      duck_ipc_proto::log_startup_identity!("robotd");
  
      let mut state = RobotState::new(&params, &params_path, args.unhealthy, args.busy);
@@ -3829,7 +3854,7 @@ index c195f08..6473a56 100644
      let vetbook_path = args.vetbook.clone().or_else(|| {
          (!args.fake && args.sim.is_none()).then(|| PathBuf::from(vetbook::DEFAULT_PATH))
      });
-@@ -1152,12 +1930,16 @@ fn run_init(params: &Params, duration: Duration) -> ExitCode {
+@@ -1152,12 +1932,16 @@ fn run_init(params: &Params, duration: Duration) -> ExitCode {
      // reaches for right after a motor swap, and it must not be the one path that refuses the
      // new servo.
      let mut adopted = None;
@@ -3846,7 +3871,7 @@ index c195f08..6473a56 100644
      );
      // The daemon is stopped while `init` runs — it holds the same lock — so the book is this
      // process's to write.
-@@ -1275,6 +2057,15 @@ fn spawn_control_thread(
+@@ -1275,6 +2059,15 @@ fn spawn_control_thread(
              // because nothing had been *attempted* the health reason was the bland "control
              // loop has not completed a cycle yet", forever, whatever happened to the robot
              // afterwards. Retrying the read alone was not enough: execution never got there.
@@ -3862,7 +3887,7 @@ index c195f08..6473a56 100644
              runtime.block_on(async move {
                  // The voice works while the bus does not: a robot waiting on unplugged servos
                  // still quacks. Stopped before the loop starts, which then owns the speaker.
-@@ -1354,7 +2145,7 @@ impl Drop for WaitingVoice {
+@@ -1354,7 +2147,7 @@ impl Drop for WaitingVoice {
  
  /// The real bus on the board; a fake elsewhere, so `open_bus_waiting` has one signature.
  #[cfg(target_os = "linux")]
@@ -3871,7 +3896,7 @@ index c195f08..6473a56 100644
  #[cfg(not(target_os = "linux"))]
  type BusIo = FakeIo;
  
-@@ -1367,14 +2158,45 @@ type BusIo = FakeIo;
+@@ -1367,14 +2160,45 @@ type BusIo = FakeIo;
  /// Returns `None` only if shutdown is requested while waiting.
  async fn open_bus_waiting(bus: &params::Bus, state: &RobotState) -> Option<BusIo> {
      let mut attempt = 0u32;
@@ -3918,7 +3943,7 @@ index c195f08..6473a56 100644
          // Written down whether or not the rest of the bring-up works: the servo is in the joint
          // now, flashed to its ID, and the next attempt will not see it as new.
          if let Some(id) = adopted {
-@@ -1386,6 +2208,12 @@ async fn open_bus_waiting(bus: &params::Bus, state: &RobotState) -> Option<BusIo
+@@ -1386,6 +2210,12 @@ async fn open_bus_waiting(bus: &params::Bus, state: &RobotState) -> Option<BusIo
                      state.startup_bus_failures.store(0, Ordering::Relaxed);
                      state.startup_missing.store(Arc::new(Vec::new()));
                      state.startup_imu_missing.store(false, Ordering::Relaxed);
@@ -3931,7 +3956,7 @@ index c195f08..6473a56 100644
                      return Some(io);
                  }
                  Some(false) => imu_missing = true,
-@@ -1431,12 +2259,24 @@ fn open_bus(
+@@ -1431,12 +2261,24 @@ fn open_bus(
      attempt: u32,
      missing: &mut Vec<u8>,
      adopted: &mut Option<u8>,
@@ -3957,7 +3982,7 @@ index c195f08..6473a56 100644
          Ok(io) => io,
          Err(e) => {
              if loud {
-@@ -1445,20 +2285,33 @@ fn open_bus(
+@@ -1445,20 +2287,33 @@ fn open_bus(
              return None;
          }
      };
@@ -4002,7 +4027,7 @@ index c195f08..6473a56 100644
          Ok(n) => tracing::warn!(corrected = n, "motor registers corrected"),
          Err(e) => {
              if loud {
-@@ -1512,6 +2365,72 @@ fn imu_answers(_io: &mut BusIo, _attempt: u32) -> Option<bool> {
+@@ -1512,6 +2367,72 @@ fn imu_answers(_io: &mut BusIo, _attempt: u32) -> Option<bool> {
      Some(true)
  }
  
@@ -4075,7 +4100,7 @@ index c195f08..6473a56 100644
  /// The motor-swap path: if exactly one expected servo is silent and a factory-fresh one
  /// answers instead, flash the new one as the missing joint.
  ///
-@@ -1591,6 +2510,7 @@ fn open_bus(
+@@ -1591,6 +2512,7 @@ fn open_bus(
      _attempt: u32,
      _missing: &mut Vec<u8>,
      _adopted: &mut Option<u8>,
@@ -4083,7 +4108,7 @@ index c195f08..6473a56 100644
  ) -> Option<BusIo> {
      tracing::error!("no bus on this platform; use --fake");
      None
-@@ -2357,6 +3277,9 @@ async fn control_loop<T: RobotIo>(
+@@ -2357,6 +3279,9 @@ async fn control_loop<T: RobotIo>(
      // `robot.state` timestamp by one inference otherwise. It rides the coast: a coasted tick
      // republishes the last fresh sample, so it must republish that sample's read time too.
      let mut sensors_read_ns = 0u64;
@@ -4093,7 +4118,7 @@ index c195f08..6473a56 100644
      while !state.shutdown.load(Ordering::Relaxed) {
          ticker.tick().await;
          let tick_start = Instant::now();
-@@ -2404,6 +3327,22 @@ async fn control_loop<T: RobotIo>(
+@@ -2404,6 +3329,22 @@ async fn control_loop<T: RobotIo>(
          // know where the joints have moved to.
          let sensors = coast.sample(fresh);
  
@@ -4116,7 +4141,7 @@ index c195f08..6473a56 100644
          if let Some(fresh) = fresh.as_ref() {
              safety.observe(fresh, period);
              // Only once the orientation filter has converged: seeding the anchor from a
-@@ -2486,6 +3425,7 @@ async fn control_loop<T: RobotIo>(
+@@ -2486,6 +3427,7 @@ async fn control_loop<T: RobotIo>(
              Some(intents::PowerRequest::Relax) => match safety.set_torque(false) {
                  Ok(()) => {
                      tracing::warn!("robot.relax: torque off");
@@ -4124,7 +4149,7 @@ index c195f08..6473a56 100644
                      // Back to the start, so the next `init` or Start ramps from wherever the robot
                      // ends up rather than assuming it is still at the home pose.
                      bringup = Bringup::Limp;
-@@ -2519,6 +3459,9 @@ async fn control_loop<T: RobotIo>(
+@@ -2519,6 +3461,9 @@ async fn control_loop<T: RobotIo>(
              if let Err(e) = safety.set_torque(false) {
                  tracing::warn!(error = %e, "robot.rebootMotors: torque off failed on a servo; rebooting anyway");
              }
@@ -4134,7 +4159,7 @@ index c195f08..6473a56 100644
              vettally.motor_reboot();
              match safety.reboot_motors(&ids) {
                  Ok(()) => tracing::warn!(
-@@ -3800,9 +4743,20 @@ async fn control_loop<T: RobotIo>(
+@@ -3800,9 +4745,20 @@ async fn control_loop<T: RobotIo>(
              watch.commanded(&targets);
          }
  
@@ -4156,7 +4181,7 @@ index c195f08..6473a56 100644
              Err(e) => tracing::warn!(error = %e, "bus write failed"),
          }
  
-@@ -4095,6 +5049,11 @@ fn publish_slow_sensors<T: RobotIo>(
+@@ -4095,6 +5051,11 @@ fn publish_slow_sensors<T: RobotIo>(
  
      match io.slow_sensors() {
          Ok(slow) => {
@@ -4168,7 +4193,7 @@ index c195f08..6473a56 100644
              let previous = f64::from_bits(state.battery_v.load(Ordering::Relaxed));
              // Seed from the first reading rather than blending up from zero, which would
              // spend ten seconds reporting a battery flatter than it is.
-@@ -4469,13 +5428,36 @@ async fn handle(
+@@ -4469,13 +5430,36 @@ async fn handle(
          }
  
          let response = match call {
@@ -4206,7 +4231,7 @@ index c195f08..6473a56 100644
  /// Answer one request.
  ///
  /// Synchronous and allocation-light on purpose: these answers must be available even when
-@@ -5529,6 +6511,20 @@ fn dispatch(
+@@ -5529,6 +6513,20 @@ fn dispatch(
              proto::Response::ok(Some(id), &proto::IntentResult::accepted())
          }
  
@@ -4227,7 +4252,7 @@ index c195f08..6473a56 100644
          proto::Call::RobotHealth => proto::Response::ok(Some(id), &state.health()),
          proto::Call::RobotSafeToRestart => proto::Response::ok(Some(id), &state.safe_to_restart()),
          proto::Call::RobotModelApi => proto::Response::ok(
-@@ -6408,6 +7404,136 @@ mod tests {
+@@ -6408,6 +7406,136 @@ mod tests {
          assert!(none.walk.is_none() && none.skills.is_empty());
      }
  

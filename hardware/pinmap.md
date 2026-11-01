@@ -74,7 +74,7 @@
 - 半双工方向切换全在 HAT 硬件 (U7/U6 + MMBT3906), 不占 GPIO, 也不需要内核 RS485。
 - **不走"DXL 复用 8/10 的 uart0"** (评估过, 放弃): uart0 就是调试口, 要 mask `serial-getty@ttyS0`
   丢掉 console; 固件口从 `/dev/ttyS2` 变成 `/dev/ttyS0`; uart0 FIFO 只有 64 B (uart2 是 256 B), 
-  1 Mbps 无 DMA 的余量只能靠实测。代价大于改两根线。
+  500 kbps 无 DMA 的余量只能靠实测。代价大于改两根线。
 - 若将来直接拿 kissqy 原版 PCB 插 A733: 他把排针 32 (J4-31)接地, A733 该脚是 PD1/PWM, 需确认 PD1
   上电态不为高; 我们这版留空。
 - 排针 14/16/26/27/28 (PL2/PL3/PL4/PL5)挂 arisc/常开域, 做 GPIO 备用前先确认主核可控。
@@ -96,7 +96,7 @@
   加载 (`scripts/aic3x-module/`), 声卡为 card 1 `aic3104hat`。
 
 **UART: 可配, 两条路都在**
-- 9 个 uart 控制器统一 `allwinner,uart-v100` (uart0@0x2500000 … uart8@0x7081000), 都能 overlay 挂 pin 组开启, 1 Mbps + DMA 无碍。
+- 9 个 uart 控制器统一 `allwinner,uart-v100` (uart0@0x2500000 … uart8@0x7081000), 都能 overlay 挂 pin 组开启, 500 kbps + DMA 无碍。
 - uart2 的 pin 组是 `pins = "PB0","PB1"`, 即排针 **11/13** (本项目已把 DXL 接在这里)。
 - 排针 8/10 是"CPU-TX / CPU-RX 调试口", 即 console 用的 uart0 / ttyS0。
 - ∴ 走 8/10 = 复用 debug UART, 要禁 console/getty (kissqy 同款); **本板已定案改走 11/13 的 uart2** (`hardware/overlay/uart2-dxl.dts`, 只写一行 `status = "okay"`, pinctrl 板级 dts 里已有), console 留在 8/10。

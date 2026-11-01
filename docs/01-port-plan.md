@@ -45,7 +45,7 @@
 | 风险 | 缓解 |
 | --- | --- |
 | 厂商镜像缺 codec 驱动 | 已自带 `.ko`; 上板先查 `aplay -l`, 不行再查 `dmesg \| grep aic31` |
-| A733 UART 1 Mbps 半双工时序 | 方向切换在 HAT 硬件 (U7/U6 + MMBT3906), 内核侧只是普通串口; 重点核对 pinctrl 与 DMA |
+| A733 UART 500 kbps 半双工时序 | 方向切换在 HAT 硬件 (U7/U6 + MMBT3906), 内核侧只是普通串口; 已实测通过 (1 Mbps 在 24 MHz 固定时钟下会被取整成 750 kbps, 所以总线跑 500 kbps) |
 | Studio 是照着 replica 的 fork 写的 | `busStatus`/`busCommand` 已补齐, `startupSubscribe` 按设计不做; 上板后逐页点, 差异记到 [03-software-stack.md](03-software-stack.md) |
 | 供电 | HAT 只吃外部 5V (U11 端子), 舵机电池直接插 J13/J14; USB-C 与端子之间有理想二极管隔离, 可同时接 |
 | 飞特 sync-read 的 IMU 应答顺序 | ID 200 必须排在 15 颗舵机**之后** (排首位会吃掉下一颗的末字节); 模块里有单测守着 |
