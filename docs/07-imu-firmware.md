@@ -64,4 +64,4 @@ IMU 是挂在舵机总线上的 **DXL ID 200** 设备 (STM32G031F8P6 + LSM6DSV16
 | 主控完全收不到 IMU 回包 | 板子有没有上电 (J1-2 有没有电池电压); 固件是不是 500 kbps 版 (`s` 的首行) |
 | 同上, 且总线是 1 Mbps | 固件与舵机档位不一致, 三个档位表逐项对 |
 | `ping 200` 没应答但舵机能通 | J1 的 1/2/3 脚序 (本项目统一 `数据/V+/GND`, 不要用 Dynamixel 序的成品线) |
-| `ready=0 err=3` | IMU 芯片 SPI 不通, 多半是 LGA 焊接 (见 [imu-layout.md](../hardware/imu-layout.md) 与 `docs/05`) |
+| `ready=0 err=3` | IMU 芯片 SPI 不通, 多半是 LGA 焊接 (见 [imu-layout.md](../hardware/imu-layout.md)) |

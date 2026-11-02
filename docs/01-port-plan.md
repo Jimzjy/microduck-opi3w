@@ -38,17 +38,17 @@
 | HAT 移植 (引脚 + 供电) | ✅ REV B 已送厂 |
 | aic3x codec 模块 | ✅ 上板原生编译 `snd-aic3x.ko`, vermagic 与目标内核逐字一致, 音频已出声 |
 | IMU 板固件 (500 kbps) | ✅ 上板实测 `1.0.0-500k`, 寄存器 6 回 `0x01`, 数据实时更新 |
-| A733 系统镜像 | ✅ 已组装出成品 (不入库, 按 [05-bringup-runbook.md](05-bringup-runbook.md) 第 5 步产出); 待真机验收 |
+| A733 系统镜像 | ✅ 已组装出成品 (不入库, 按 [05-bringup-runbook.md](05-bringup-runbook.md) 第 5 步产出), **真机首启验收通过**; 装机流程见 [04-quickstart.md](04-quickstart.md) |
 | 板侧依赖 (ONNX Runtime, GStreamer) | ⏳ 待板子到手 |
 | 装配 / 标定 / 试走 | ⏳ 需实物 |
 
-每一步怎么跑见 [05-bringup-runbook.md](05-bringup-runbook.md)。
+装机流程见 [04-quickstart.md](04-quickstart.md); 从源码构建见 [05-bringup-runbook.md](05-bringup-runbook.md)。
 
 ## 风险清单
 
 | 风险 | 缓解 |
 | --- | --- |
-| 厂商镜像缺 codec 驱动 | 已自带 `.ko`; 上板先查 `aplay -l`, 不行再查 `dmesg \| grep aic31` |
+| 厂商镜像缺 codec 驱动 | 已自带 `.ko`; 上板先查 `aplay -l`, 不行再查 `dmesg \| grep -i aic3` |
 | A733 UART 500 kbps 半双工时序 | 方向切换在 HAT 硬件 (U7/U6 + MMBT3906), 内核侧只是普通串口; 已实测通过 (1 Mbps 在 24 MHz 固定时钟下会被取整成 750 kbps, 所以总线跑 500 kbps) |
 | Studio 是照着 replica 的 fork 写的 | `busStatus`/`busCommand` 已补齐, `startupSubscribe` 按设计不做; 上板后逐页点, 差异记到 [03-software-stack.md](03-software-stack.md) |
 | 供电 | HAT 只吃外部 5V (U11 端子), 舵机电池直接插 J13/J14; USB-C 与端子之间有理想二极管隔离, 可同时接 |

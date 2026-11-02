@@ -8,11 +8,11 @@
 
 | # | 物料 | 说明 |
 | --- | --- | --- |
-| 1 | Orange Pi Zero 3W 主控板 | 本项目按 1GB 版实测 (需换官方 bootloader, 见 docs/05 第 5 步); 2GB 及以上不受影响 |
+| 1 | Orange Pi Zero 3W 主控板 | 本项目按 1GB 版实测。发行镜像已换好官方 bootloader (1GB 版可直接用); 自己构建见 docs/05 §5 |
 | 2 | HAT 扩展板 | 工程 `hardware/eda/HAT_REVA_SCH_OPI3W.eprj2` (EasyEDA Pro), BOM 见 [hardware/hat-layout.md](hardware/hat-layout.md) |
 | 3 | IMU 板 | 工程 [hardware/eda/imu_to_dxl_1V0A](hardware/eda/imu_to_dxl_1V0A/) (取自 replica, 已存本仓), 烧本仓固件 [hardware/imu-firmware](hardware/imu-firmware/), 见 [docs/07](docs/07-imu-firmware.md) |
 | 4 | 5V DC-DC 模块 | 3A 同步整流 (mini560 类, 不要用 2A 的 LM2596), **只给 HAT 板供电**; 舵机与 IMU 板吃舵机电池, 不经过它 |
-| 5 | 15x HD-1910 舵机 | 飞特 STS 总线; ID 分配与标定见 docs/05 第 8 步 |
+| 5 | 15x HD-1910 舵机 | 飞特 STS 总线; ID 与波特率设置见 docs/04 §3, 标定见 §6 |
 | 6 | microSD 卡 | 卡 >= 16GB; 调试另备 mini HDMI 线或 USB-TTL 串口线 |
 
 喇叭, 麦克风等其余外设的型号与采购见 kissqy 发布包: [DUCK-SHOPPING-LIST](https://github.com/kissqy/Microduck-kissqy) (子模块 `firmware/` 内同款文件)。
@@ -27,8 +27,23 @@
 3D 打印件与机壳: 不在本仓, 从 [官方 microduck](https://github.com/pollen-robotics/microduck) (MJCF/STL)
   或 [kissqy 发布包](https://github.com/kissqy/Microduck-kissqy) 取。
 
-想直接动手: [docs/05-bringup-runbook.md](docs/05-bringup-runbook.md)
-(clone → 编译 → 镜像 → 烧卡 → 验收 → 标定)。其余文档是设计与背景, 复刻遇到问题时再读。
+## 怎么开始
+
+有两条路, 按你手上有什么选:
+
+**A. 只想把鸭子装起来 (最常见)** — 用发行镜像, 全程不用编译:
+
+1. 烧镜像到 SD 卡
+2. 烧 IMU 板的固件 (`hardware/imu-firmware/Build-gcc/imu_to_dxl.hex`, 一行 openocd)
+3. 设 15 颗舵机的 ID 与波特率 (装机前)
+4. 装机接线 → 首次开机 → 五项验收 → 标定
+
+完整步骤: [docs/04-quickstart.md](docs/04-quickstart.md)。
+
+**B. 要改代码 / 自己出镜像** — 从 clone 开始编 overlay、运行时、内核模块、镜像:
+[docs/05-bringup-runbook.md](docs/05-bringup-runbook.md)。
+
+其余文档是设计与背景, 复刻遇到问题时再读。
 
 ## 三条上游
 
@@ -49,10 +64,11 @@ kissqy 子模块作为 HAT 硬件基线与发布包来源。
 ```
 docs/
   00-upstreams.md       三个上游的关系, 许可边界, 我们各取什么 (先读这个)
-  01-port-plan.md       移植要点: 换板要动哪四件事, 阶段状态, 风险
+  01-port-plan.md       移植要点: 换板要动哪五件事, 阶段状态, 风险
   02-hat-porting.md     HAT 移植方案与已执行的供电/引脚改动
   03-software-stack.md  软件层: 运行时 / Studio / 镜像 / 训练, 谁在哪, 怎么装
-  05-bringup-runbook.md 从零复刻: clone -> 编译 -> 镜像 -> 烧卡 -> 验收 -> 标定
+  04-quickstart.md      快速开始: 烧卡 -> 烧 IMU -> 舵机设置 -> 装机 -> 验收 -> 标定
+  05-bringup-runbook.md 从源码构建 (开发者): clone -> 编译 -> 镜像 -> 烧卡 -> 验收 -> 标定
   06-audio-aic3104.md   音频: codec 接线, 驱动/overlay 要点, mixer, 自检与踩坑
   07-imu-firmware.md    IMU 板与固件: 为什么自己维护, 三端波特率档位, 供电与排障
 patches/
