@@ -35,6 +35,8 @@
 时不读那一块, `imu_ready()` 保持 false (机器人没装 IMU 板也能起, 照实报告), 不会死等。
 `set_imu_mount` 两个后端都生效 (mount 是机身属性), 摔倒检测/里程计/被拿起检测随之恢复。
 待上板实测: ttyS2 上 ID 200 是否应答, `firmware/1.0.0` 板子的 sample 计数是否在走。
+(**已上板实测通过**: 总线跑 500 kbps, `ping 200` 回 `ffffc8020035`, 采样计数实时增长; IMU 板固件由本仓维护,
+见 [07-imu-firmware.md](07-imu-firmware.md)。)
 
 **交叉编译** (任意 Linux 主机, `scripts/build-runtime.sh`; 我们是在 Windows+WSL2 Debian 13 上跑的): 
 

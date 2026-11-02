@@ -15,9 +15,9 @@ Studio 标定**。每一步都给出命令和验证方法; 没验证过的步骤
 | microSD 卡 | 1 | ≥16 GB, A1/A2 |
 | microduck HAT (REV B) | 1 | `hardware/eda/HAT_REVA_SCH_OPI3W.eprj2` |
 | HD-1910 舵机 (飞特 STS 协议) | 15 | 腿部 12 + 头颈 3 |
-| IMU 板 (replica v2) | 1 | replica 仓 `hardware/新版/imu_to_dxl_1V0A` 工程打板, 总线 ID 200 |
+| IMU 板 (replica v2) | 1 | 工程在本仓 `hardware/eda/imu_to_dxl_1V0A/` 打板, 烧本仓 `hardware/imu-firmware/Build-gcc/imu_to_dxl.hex` (500 kbps), 总线 ID 200; 见 [07-imu-firmware.md](07-imu-firmware.md) |
 | USB-TTL 串口线 | 1 | 3.3 V 电平, 接 console (排针 8/10) |
-| 5 V / 3 A 电源模块 | 1 | 同步整流 (mini560 一类), 同时供 HAT 与 IMU 板 |
+| 5 V / 3 A 电源模块 | 1 | 同步整流 (mini560 一类), **只供 HAT 板**; 舵机与 IMU 板由舵机电池经 J13/J14 供电 |
 | ToF 测距模块 **VL53L5X V2** | 1 | 8×8 多区 ToF, I2C 地址 0x29 (与 codec 共用 i2c3)。杜邦线接 HAT H1 排针 (3V3/GND/SDA/SCL, 见 `hat-layout.md` |
 | 摄像头 **Radxa ROCK 5 IMX219** | 1 | CSI 排线接主控 CSI 座。注意: 本仓只部署 robotd/robotctl, 摄像头链路 (mediad/WebRTC)未部署, 见 docs/03 §B |
 
@@ -34,6 +34,20 @@ Studio 标定**。每一步都给出命令和验证方法; 没验证过的步骤
 
 **软件包** (Debian/Ubuntu 名): `git`, `rustup` (稳定版, 另加 target `aarch64-unknown-linux-gnu`), 
 `gcc-aarch64-linux-gnu`, `device-tree-compiler`; `qemu-utils` 只有 Windows+WSL 的 VHD 路线需要。
+另需 `gcc-arm-none-eabi` + `openocd` 烧 IMU 板固件 (拿到现成 hex 的话只需要 `openocd`)。
+
+### 开工前: 先把 IMU 板的固件烧好
+
+装好 IMU 板之后第一件事, 不要等装到鸭子上再烧 (J3 会被挡住):
+
+```bash
+openocd -f interface/cmsis-dap.cfg -f target/stm32g0x.cfg -c 'adapter speed 4000' \
+        -c 'program hardware/imu-firmware/Build-gcc/imu_to_dxl.hex verify reset exit'
+```
+
+hex 已随仓提供 (500 kbps 版, 源码同样在本仓)。烧完串口 (115200 8N1) 上按 `s`, 首行应是
+`imu_to_dxl 1.0.0-500k | STM32G031F8 | FT-SCS ID=200 500000 8N1`; 细节与重建固件见
+[07-imu-firmware.md](07-imu-firmware.md)。
 
 ## 1. 取源码
 

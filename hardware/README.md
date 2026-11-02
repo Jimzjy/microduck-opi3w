@@ -1,6 +1,7 @@
 # 硬件目录
 
-只收**改动**与移植文档: HAT 用 kissqy 衍生版 (我们自己精简过), IMU 板原样沿用 replica 的 v2。
+只收**改动**与移植文档: HAT 用 kissqy 衍生版 (我们自己精简过), IMU 板沿用 replica 的 v2 电路
+(工程文件已快照进本仓, 固件由本仓维护在 500 kbps)。
 
 ## 内容
 
@@ -10,22 +11,34 @@
 | `hat-layout.md` | HAT 逐区说明: 电源, 音频, DXL 总线, ToF, 排针; 以及每处改动的理由 |
 | `imu-layout.md` | IMU 板: 连接器脚序, 电源, 数据通路, MCU 引脚, 固件来源 |
 | `overlay/` | A733 设备树 overlay: `uart2-dxl.dts` (打开 uart2 PB0/PB1 → 排针 11/13), `audio-a733.dts` (aic3x 声卡) |
-| `eda/HAT_REVA_SCH_OPI3W.eprj2` | HAT 原理图工程 (EasyEDA Pro), REV B, 已送厂。**本仓唯一自有的 EDA 工程** |
+| `eda/HAT_REVA_SCH_OPI3W.eprj2` | HAT 原理图工程 (EasyEDA Pro), REV B, 已送厂。**本仓自有的 EDA 工程** |
+| `eda/imu_to_dxl_1V0A/` | IMU v2 板工程 + 原理图 PDF, 取自 replica @ `35b435d`, 原样快照 (只读参考, 我们不在这上面改板) |
+| `imu-firmware/` | IMU 板固件源码 + `Build-gcc/imu_to_dxl.hex` (500 kbps 版), 见其 `README-opi3w.md` |
 | `datasheets/` | 厂商原始文档存档: 飞特 HD-1910-C001 规格书, Orange Pi Zero 3W 手册/原理图/位号图/DXF (含 SHA256 与用途说明, 见其 README) |
 
-IMU 板 / POGO 电池连接板**不在本仓**: 原样沿用 replica 的设计, 未做任何修改, 工程文件用
-[fanhao375/microduck-replica](https://github.com/fanhao375/microduck-replica) 仓里的
-`hardware/新版/imu_to_dxl_1V0A / POGO_PIN_1V0A` (IMU 板的固件也在同仓库:
-`hardware/新版/imu_to_dxl_1V0A/firmware-1.0.0/Build/imu_to_dxl.hex`, 烧录说明见
-[imu-layout.md](imu-layout.md) §5)。POGO 板是电池的顶针接触连接板。
-要改这两块板, clone replica 仓改它的工程。
+## IMU 板与 POGO 板
+
+IMU 板 (v2 电路) 与它的工程文件**已在本仓**: `eda/imu_to_dxl_1V0A/`, 来自
+[fanhao375/microduck-replica](https://github.com/fanhao375/microduck-replica) @
+`35b435d7a6361c3480c2d0916ecf79c318710690` 的 `hardware/新版/imu_to_dxl_1V0A`。
+
+之所以快照进来: 我们把固件改成了 500 kbps (A733 出不了 1 Mbps, 见
+[docs/07](../docs/07-imu-firmware.md)), 而固件与板子的引脚表是一对一绑定的。上游哪天改了这块板,
+照文档去 clone replica 的人就会拿到一块不兼容的板, 我们的固件反而用不了。工程在本仓, 复刻者一定拿到
+我们验证过的那一版。
+
+固件源码与预置 hex 在 `imu-firmware/`, 烧录说明见 [imu-layout.md](imu-layout.md) §5。
+
+**POGO 电池连接板不在本仓**: 原样沿用 replica 的 `hardware/新版/POGO_PIN_1V0A`, 未做任何修改。要改这块板,
+clone replica 仓改它的工程。
 
 ## HAT 供电定案
 
 `U11` 两脚螺钉端子接外部 5V → `Q2` (AO3401A) 反接保护 → `Q3/Q4` 分立理想二极管 (调试时 USB-C
 与外部 5V 同时接不倒灌) → `5V` 单一母线 (SoC/偏置/功放共用) → `D1` SMAJ5.0A 钳位。buck, PTC,
-旧理想二极管全部删除。舵机串不经 5V 母线: 电池直接接在 J13/J14 总线座上给舵机供电 (座脚序
-1=数据 / 2=电池+ / 3=GND), 不需要独立的 HUB 板。
+旧理想二极管全部删除。**这条 5V 母线只给 HAT 板自己供电**: 舵机与 IMU 板吃舵机电池, 直接接在
+J13/J14 总线座上 (座脚序 1=数据 / 2=电池+ / 3=GND), 不需要独立的 HUB 板; 拔掉舵机电池时 IMU 板
+也一起断电, 属正常。
 
 逐条改动与理由见 [hat-layout.md](hat-layout.md)。
 

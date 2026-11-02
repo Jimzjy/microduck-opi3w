@@ -2,7 +2,7 @@
 
 把 [Pollen Robotics Microduck](https://github.com/pollen-robotics/microduck) 这只开源四足鸭复刻到
 **Orange Pi Zero 3W (全志 A733)** 上: 沿用飞特 HD-1910 总线舵机与总线 IMU。
-本仓只放改动与移植文档, 上游代码不复制。
+本仓只放改动与移植文档; 上游代码以子模块、差分补丁或小体量快照 (IMU 板工程 + 固件) 引入, 不整仓复制。
 
 ## 你需要准备什么
 
@@ -10,8 +10,8 @@
 | --- | --- | --- |
 | 1 | Orange Pi Zero 3W 主控板 | 本项目按 1GB 版实测 (需换官方 bootloader, 见 docs/05 第 5 步); 2GB 及以上不受影响 |
 | 2 | HAT 扩展板 | 工程 `hardware/eda/HAT_REVA_SCH_OPI3W.eprj2` (EasyEDA Pro), BOM 见 [hardware/hat-layout.md](hardware/hat-layout.md) |
-| 3 | IMU 板 | 用 [microduck-replica](https://github.com/fanhao375/microduck-replica) 的 `hardware/新版/imu_to_dxl_1V0A` 工程打板, 烧其 `firmware-1.0.0`, 见 [hardware/imu-layout.md](hardware/imu-layout.md) §5 |
-| 4 | 5V DC-DC 模块 | 3A 同步整流 (mini560 类, 不要用 2A 的 LM2596), 同时给 HAT 和 IMU 板供电 |
+| 3 | IMU 板 | 工程 [hardware/eda/imu_to_dxl_1V0A](hardware/eda/imu_to_dxl_1V0A/) (取自 replica, 已存本仓), 烧本仓固件 [hardware/imu-firmware](hardware/imu-firmware/), 见 [docs/07](docs/07-imu-firmware.md) |
+| 4 | 5V DC-DC 模块 | 3A 同步整流 (mini560 类, 不要用 2A 的 LM2596), **只给 HAT 板供电**; 舵机与 IMU 板吃舵机电池, 不经过它 |
 | 5 | 15x HD-1910 舵机 | 飞特 STS 总线; ID 分配与标定见 docs/05 第 8 步 |
 | 6 | microSD 卡 | 卡 >= 16GB; 调试另备 mini HDMI 线或 USB-TTL 串口线 |
 
@@ -36,10 +36,11 @@
 | --- | --- | --- | --- |
 | [pollen-robotics/microduck](https://github.com/pollen-robotics/microduck), [microduck_rl](https://github.com/pollen-robotics/microduck_rl) | 官方运行时 (Rust), 强化学习训练, MJCF + STL | 主控运行时基线: 官方 `daemon-v0.17.9` + 我们的补丁 (Feetech 后端, 总线 IMU, 标定台架); 3D 打印件 | 代码 Apache-2.0; 3D 网格 CC BY-NC-SA |
 | [kissqy/Microduck-kissqy](https://github.com/kissqy/Microduck-kissqy) | HD-1910 运行时 fork, 总线 IMU 板, 发布包 (步态模型等) | HAT 硬件基线 (已按本仓精简) + 发布包 (真步态 ONNX 模型, 安装脚本, 文档) | 见 `firmware/` 内 LICENSE; 文档/资产沿用上游条款 |
-| [fanhao375/microduck-replica](https://github.com/fanhao375/microduck-replica) | 板载网页中控 Studio, 自制 IMU v2 / wire_hub / POGO 板, 大量实测文档 | 硬件与工程实践主参考: IMU v2 板 (硬件 + 固件 `firmware-1.0.0` 都用它), Studio (固定 commit), 镜像脚本思路, 踩坑记录 | 代码/Studio/镜像脚本 Apache-2.0; 文档与 3D CC BY-NC-SA |
+| [fanhao375/microduck-replica](https://github.com/fanhao375/microduck-replica) | 板载网页中控 Studio, 自制 IMU v2 / wire_hub / POGO 板, 大量实测文档 | 硬件与工程实践主参考: IMU v2 板 (工程与固件均已在 35b435d 快照进本仓, 固件由我们改到 500 kbps), Studio (固定 commit), 镜像脚本思路, 踩坑记录 | 代码/Studio/镜像脚本 Apache-2.0; 文档与 3D CC BY-NC-SA |
 
 固件分工: **主控运行时 = 官方 0.17.9 + 我们的补丁** (`patches/runtime-opi3w-feetech.patch`);
-**IMU 板固件 = replica 的 `firmware-1.0.0`** (板就是 replica 的 v2, 贴片与固件同源)。
+**IMU 板固件 = 本仓维护的 500 kbps 版** (基线是 replica `firmware-1.0.0`, 只改了波特率档位与台架自检命令;
+源码与 hex 都在 [hardware/imu-firmware](hardware/imu-firmware/), 为什么不直接用上游 hex 见 [docs/07](docs/07-imu-firmware.md))。
 kissqy 子模块作为 HAT 硬件基线与发布包来源。
 详见 [docs/03-software-stack.md](docs/03-software-stack.md)。
 
@@ -53,11 +54,13 @@ docs/
   03-software-stack.md  软件层: 运行时 / Studio / 镜像 / 训练, 谁在哪, 怎么装
   05-bringup-runbook.md 从零复刻: clone -> 编译 -> 镜像 -> 烧卡 -> 验收 -> 标定
   06-audio-aic3104.md   音频: codec 接线, 驱动/overlay 要点, mixer, 自检与踩坑
+  07-imu-firmware.md    IMU 板与固件: 为什么自己维护, 三端波特率档位, 供电与排障
 patches/
   runtime-opi3w-feetech.patch   我们运行时分支的完整差分 (打在上游 daemon-v0.17.9 上)
   README.md                     基线与结果树哈希, apply 步骤, 内容清单
 hardware/
-  eda/                  EasyEDA Pro 工程 (HAT REV B; IMU/HUB/POGO 板用 replica 仓的工程)
+  eda/                  EasyEDA Pro 工程: HAT REV B + IMU v2 (取自 replica, 已快照进本仓); HUB/POGO 板用 replica 仓的工程
+  imu-firmware/         IMU 板固件源码 + GCC 构建 + 预置 hex (500 kbps 版)
   overlay/              A733 设备树 overlay (uart2-dxl.dts, audio-a733.dts)
   hat-layout.md         HAT 网表, BOM, 每处改动的理由
   pinmap.md             40-pin 重映射 + A733 控制器实证
@@ -72,6 +75,7 @@ firmware/               git submodule: kissqy/Microduck-kissqy @ eccc2fdb
 | --- | --- |
 | 运行时移植 (官方 0.17.9 + 补丁) | ✅ 554 测试通过; host 端 `--fake` 全链路冒烟 5/5 绿; 补丁已验证可精确重建该分支 |
 | 飞特总线 IMU (ID 200) | ✅ 上板实测: `ping 200` 回 `ffffc8020035`, 陀螺数据实时变化 |
+| IMU 板固件 (500 kbps, 本仓维护) | ✅ 上板实测 `1.0.0-500k`, 寄存器 6 回 `0x01`; GCC 工具链可重建同尺寸 hex |
 | 标定链路 (busStatus / busCommand / `--commissioning`) | ✅ 完成; 台架冒烟 healthy; `startupSubscribe` 不做 (Studio 优雅降级) |
 | aarch64 交叉编译 | ✅ `robotd` 9.6 MB / `robotctl` 7.7 MB, GLIBC 2.39 (底图 2.41 满足) |
 | HAT 原理图 | ✅ REV B 已送厂 |
@@ -87,5 +91,7 @@ firmware/               git submodule: kissqy/Microduck-kissqy @ eccc2fdb
 - 按需拉取的 replica 内容不受本仓管辖: 其代码 Apache-2.0, 文档与 3D 资产 CC BY-NC-SA 4.0 (**非商业**, 需署名)。
   因此本仓文档只引用其结论与路径, 不整篇搬运。
 - `patches/` 是官方 Apache-2.0 代码上的差分, 随官方条款。
+- `hardware/imu-firmware/` 是 replica `firmware-1.0.0` (MIT) 的快照 + 我们的改动, 保留原 `LICENSE`;
+  `hardware/eda/imu_to_dxl_1V0A/` 是同一上游 commit 的工程文件原样快照, 只为保证复刻可重现, 版权归原作者。
 - 3D 打印件与机壳来自上游 MJCF/STL, 同样受 CC BY-NC-SA 约束, 不能商用。
 - 本仓自有文档与脚本: 暂未声明许可, 默认保留全部权利; 如需开源再定。

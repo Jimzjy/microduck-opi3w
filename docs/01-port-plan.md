@@ -5,7 +5,7 @@
 
 **不做的事**: `duck-detect`——它绑定 RK3588 的 rknn 栈, A733 上跑不了。A733 自己的 NPU
  (Vivante VIP9000, ACUITY/NBG 工具链)以后要做视觉检测时可以走, 但那是新项目, 不随本次移植。
-不复制上游代码。
+不复制上游代码 (以子模块 / 差分补丁 / 小体量快照的方式引入)。
 
 ## 为什么是这块板
 
@@ -15,7 +15,7 @@
 | Orange Pi Zero 3 (H618) | 不行: 无 CSI, 40-pin 定义不同 |
 | Orange Pi Zero 3W (A733) | 采用。40-pin 与 Radxa **物理布局**兼容, I2C/I2S 位置级兼容, 只有 UART 需要动 |
 
-## 换板要动的四件事
+## 换板要动的五件事
 
 1. **UART**: DXL 从 Radxa 的 8/10 (复用调试口)改到 **11/13 的 uart2**, console 留 8/10。
    HAT 侧改两根走线 (J4 焊盘 7/9 → 12/14), 内核侧加 overlay。见 [02-hat-porting.md](02-hat-porting.md)。
@@ -25,6 +25,9 @@
    我们出一颗 `.ko` (`scripts/aic3x-module/`) 随镜像安装 (vermagic 必须带 `-vendor-sun60iw2`)。
 4. **运行时**: 官方 `daemon-v0.17.9` 上补 Feetech 总线后端, 总线 IMU, 标定台架
     ([patches/](../patches/README.md)), 而不是沿用 kissqy 的老分叉。
+5. **IMU 板固件**: A733 出不了 1 Mbps, 总线改 500 kbps, 这块板的固件就得我们自己编
+    (基线 replica `firmware-1.0.0`, 改波特率档位; 源码与 hex 进本仓)。板子的 EDA 工程也一起快照进本仓,
+    免得上游改板后我们的固件失效。见 [07-imu-firmware.md](07-imu-firmware.md)。
 
 ## 阶段现状
 
@@ -34,6 +37,7 @@
 | 设备树 overlay (uart2 / 音频) | ✅ 编译 + `fdtoverlay` 回归验证, 对镜像真实 dtb 验证通过 |
 | HAT 移植 (引脚 + 供电) | ✅ REV B 已送厂 |
 | aic3x codec 模块 | ✅ 上板原生编译 `snd-aic3x.ko`, vermagic 与目标内核逐字一致, 音频已出声 |
+| IMU 板固件 (500 kbps) | ✅ 上板实测 `1.0.0-500k`, 寄存器 6 回 `0x01`, 数据实时更新 |
 | A733 系统镜像 | ✅ 已组装出成品 (不入库, 按 [05-bringup-runbook.md](05-bringup-runbook.md) 第 5 步产出); 待真机验收 |
 | 板侧依赖 (ONNX Runtime, GStreamer) | ⏳ 待板子到手 |
 | 装配 / 标定 / 试走 | ⏳ 需实物 |
