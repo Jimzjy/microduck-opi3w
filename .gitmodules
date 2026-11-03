@@ -1,3 +1,7 @@
 [submodule "firmware"]
 	path = firmware
 	url = https://github.com/kissqy/Microduck-kissqy.git
+[submodule "runtime"]
+	path = runtime
+	url = https://github.com/Jimzjy/microduck-runtime.git
+	branch = opi3w-feetech

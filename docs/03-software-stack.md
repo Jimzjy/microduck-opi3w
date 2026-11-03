@@ -19,7 +19,9 @@
 
 ## A. 板载运行时 (官方 0.17.9 + 我们的补丁)
 
-**源**: `pollen-robotics/microduck` 的 `daemon-v0.17.9` tag + [patches/runtime-opi3w-feetech.patch](../patches/README.md)。
+**源**: 本仓 `runtime/` submodule (`Jimzjy/microduck-runtime`, 分支 `opi3w-feetech`, 基线是
+`pollen-robotics/microduck` 的 `daemon-v0.17.9`)。 [patches/runtime-opi3w-feetech.patch](../patches/README.md)
+是对应的差分快照, 只作对照。
 补丁里是三块: Feetech STS 总线后端 (`bus_feetech.rs` + `bus_select.rs`), 总线 IMU, 标定台架
  (`busStatus` / `busCommand` / `--commissioning`)。
 **实测**: `cargo test` 554 通过 / 0 失败; aarch64 release 交叉编译出 `robotd` (9.6 MB)/ `robotctl` (7.7 MB)。

@@ -73,8 +73,9 @@ docs/
   06-audio-aic3104.md   音频: codec 接线, 驱动/overlay 要点, mixer, 自检与踩坑
   07-imu-firmware.md    IMU 板与固件: 为什么自己维护, 三端波特率档位, 供电与排障
   08-camera-tof.md      摄像头与 ToF: CSI 无需 overlay, mediad/tofd 依赖与启用
+runtime/               运行时源码 submodule (Jimzjy/microduck-runtime, 分支 opi3w-feetech), clone 时加 --recurse-submodules
 patches/
-  runtime-opi3w-feetech.patch   我们运行时分支的完整差分 (打在上游 daemon-v0.17.9 上)
+  runtime-opi3w-feetech.patch   运行时差分快照 (基线 daemon-v0.17.9 -> 3c74775; 最新代码看 runtime/ submodule)
   README.md                     基线与结果树哈希, apply 步骤, 内容清单
 hardware/
   eda/                  EasyEDA Pro 工程: HAT REV B + IMU v2 (取自 replica, 已快照进本仓); HUB/POGO 板用 replica 仓的工程
