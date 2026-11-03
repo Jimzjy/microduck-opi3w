@@ -14,10 +14,11 @@
 | 4 | 5V DC-DC 模块 | 3A 同步整流 (mini560 类, 不要用 2A 的 LM2596), **只给 HAT 板供电**; 舵机与 IMU 板吃舵机电池, 不经过它 |
 | 5 | 15x HD-1910 舵机 | 飞特 STS 总线; ID 与波特率设置见 docs/04 §3, 标定见 §6 |
 | 6 | microSD 卡 | 卡 >= 16GB; 调试另备 mini HDMI 线或 USB-TTL 串口线 |
+| 7 | ST-LINK V2 / V3 | 用于烧 IMU 板固件 |
 
 喇叭, 麦克风等其余外设的型号与采购见 kissqy 发布包: [DUCK-SHOPPING-LIST](https://github.com/kissqy/Microduck-kissqy) (子模块 `firmware/` 内同款文件)。
 
-后续扩展 (现阶段不必备, 我们也尚未实测):
+后续扩展:
 
 | 物料 | 说明 |
 | --- | --- |
@@ -71,6 +72,7 @@ docs/
   05-bringup-runbook.md 从源码构建 (开发者): clone -> 编译 -> 镜像 -> 烧卡 -> 验收 -> 标定
   06-audio-aic3104.md   音频: codec 接线, 驱动/overlay 要点, mixer, 自检与踩坑
   07-imu-firmware.md    IMU 板与固件: 为什么自己维护, 三端波特率档位, 供电与排障
+  08-camera-tof.md      摄像头与 ToF: CSI 无需 overlay, mediad/tofd 依赖与启用
 patches/
   runtime-opi3w-feetech.patch   我们运行时分支的完整差分 (打在上游 daemon-v0.17.9 上)
   README.md                     基线与结果树哈希, apply 步骤, 内容清单

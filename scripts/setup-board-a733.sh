@@ -334,6 +334,37 @@ UNIT
     systemctl is-enabled --quiet robotd.service 2>/dev/null \
         || systemctl enable robotd.service >/dev/null 2>&1 || true
     say "runtime: installed robotd/robotctl to /usr/local/bin, robotd.service enabled"
+
+    # tofd / mediad：payload 里有就一并装。
+    # tofd 装好但默认不启用：ToF 没接时它找不到 0x29 会退出，enable 了就是无意义的
+    # 重启循环；接好传感器后 `systemctl enable --now tofd` 一条命令打开。
+    # mediad 只装二进制不装服务：GStreamer/webrtcsink 栈没配齐之前起它会反复崩溃，
+    # 见 docs/08 的摄像头一节。
+    if [ -x "$src/tofd" ]; then
+        getent passwd tofd >/dev/null || useradd -r -d /var/lib/tofd -s /usr/sbin/nologin tofd
+        install -m 755 "$src/tofd" /usr/local/bin/tofd
+        cat > /etc/systemd/system/tofd.service <<'UNIT'
+[Unit]
+Description=MicroDuck time-of-flight daemon (dev image, hand-installed)
+After=network.target
+
+[Service]
+User=tofd
+SupplementaryGroups=i2c robot
+ExecStart=/usr/local/bin/tofd --no-imu
+Restart=on-failure
+RuntimeDirectory=tofd
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+        systemctl daemon-reload 2>/dev/null || true
+        say "runtime: installed tofd (service present but NOT enabled — run 'systemctl enable --now tofd' after the ToF sensor is wired)"
+    fi
+    if [ -x "$src/mediad" ]; then
+        install -m 755 "$src/mediad" /usr/local/bin/mediad
+        say "runtime: installed mediad to /usr/local/bin (no service — needs the GStreamer stack, see docs/08)"
+    fi
 }
 
 # ── 7. 板况报告（--status 也走这里）─────────────────────────────────────────

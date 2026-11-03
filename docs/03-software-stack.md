@@ -83,6 +83,8 @@ onnxruntime 由 ort crate 静态链入, 板上无需 libonnxruntime.so。
 `configd` 按官方镜像的 NetworkManager 约定工作), 没在 A733 上验证过的东西先塞进去, 
 坏的是"烧卡即起"的基线; ③加回来不贵——同一个运行时仓, `build-runtime.sh` 的 `-p` 列表
 加上对应 crate, payload 补齐镜像件即可, 等手柄/摄像头真要用了再上。
+`tofd` 与 `mediad` 的二进制已交叉编译并纳入 setup 脚本的安装清单, 依赖与启用方式见
+[08-camera-tof.md](08-camera-tof.md)。
 - 上板后逐页点一遍, 把实际能用的页面记在这里。
 
 **装法** (脚本 `scripts/fetch-studio.ps1` 负责拉, 这里是人做的部分): 
