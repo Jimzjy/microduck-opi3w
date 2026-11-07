@@ -96,7 +96,8 @@ OVERLAY_DIR="$REPO_DIR/hardware/overlay"
 SETUP_SH="$REPO_DIR/scripts/setup-board-a733.sh"
 
 for f in "$OVERLAY_DIR/uart2-dxl.dtbo" "$OVERLAY_DIR/audio-a733.dtbo" "$OVERLAY_DIR/csi-rail.dtbo" "$SETUP_SH" \
-	"$REPO_DIR/scripts/setup-gstreamer.sh" "$REPO_DIR/scripts/mediad-a733.service"; do
+	"$REPO_DIR/scripts/setup-gstreamer.sh" "$REPO_DIR/scripts/mediad-a733.service" \
+	"$REPO_DIR/scripts/camera-snapshot.sh"; do
 	[ -f "$f" ] || die "missing: $f（dtbo 用 dtc -@ 编译 .dts 生成）"
 done
 
@@ -175,6 +176,9 @@ install -m 0755 "$SETUP_SH" "$MNT/usr/local/sbin/setup-board-a733.sh"
 # setup-board-a733.sh 拷到 /etc/systemd/system/ 并按栈是否齐了决定 enable）。
 install -m 0755 "$REPO_DIR/scripts/setup-gstreamer.sh" "$MNT/usr/local/sbin/robot-setup-gstreamer"
 install -D -m 0644 "$REPO_DIR/scripts/mediad-a733.service" "$MNT/usr/local/share/microduck/mediad-a733.service"
+
+# 板上直接能用的抓帧小工具（烧完镜像、没有仓库也能抓一张 RG10 验证摄像头）。
+install -m 0755 "$REPO_DIR/scripts/camera-snapshot.sh" "$MNT/usr/local/bin/microduck-camera-snapshot"
 
 cat >"$MNT/etc/systemd/system/microduck-firstboot.service" <<'UNIT'
 [Unit]
