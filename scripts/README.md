@@ -15,6 +15,8 @@
 | `aic3104-mixer.sh` | 音频 mixer 一键配置 (capture 路由 + PGA + DAC→Line 增益 + 喇叭音量), 由 `aic3104-mixer.service` 开机调用 |
 | `aic3104-mixer.service` | 上面脚本的 systemd unit (`/etc/systemd/system/aic3104-mixer.service`) |
 | `mic-selftest.py` | 麦克风自检: 播一条不中断的音调流同时录音, 用 Goertzel 判拾音, 输出 `MICROPHONE PICKS UP SOUND` / `NO PICKUP` |
+| `camera-snapshot.sh` | 板侧抓一帧 CSI 原始图 (`v4l2-ctl ... --set-input=0 --stream-to`), 默认 RG10 1920x1080。**必须带 S_INPUT**, 否则格式能设、一帧不来 (原因见 docs/08) |
+| `cam-raw2png.py` | PC 侧把上一步的 RG10 raw 转 PNG (numpy+Pillow), 自动按 8 行对齐裁高、分位拉伸、RGGB 去马赛克 |
 | `build-runtime.sh` | 交叉编译运行时 `robotd`/`robotctl` (aarch64, 源 = `microduck-runtime` 仓 `opi3w-feetech` 分支 = 官方 0.17.9 + 我们的补丁)并布进 `$MICRODUCK_IMG/payload/runtime-bin/` (默认仓库同级的 `img/`)。先跑受影响 crate 测试再出产物, `SKIP_TEST=1` 可跳。产物 GLIBC 符号最高要求 2.39 (底图 trixie 的 2.41 满足); onnxruntime 静态链入板上无需装库。**二进制不进 git** |
 | `smoke-fake.sh` | 全链路台架冒烟测试 (host x86_64, 无需真机): robotd `--fake` + onnxruntime + 测试 fixture 策略, 用 robotctl 验 health/init/mode/monitor/quack fail-soft。前置: host 编译 robotd/robotctl + onnxruntime x64 ≥1.23 解到 `$ORT_DIR` (默认 /root/ort-x64)。详见脚本头注释 |
 | `smoke-commissioning.sh` | 标定台架冒烟: `robotd --fake --commissioning` 起来, 策略被关掉, 控制环在跑, `health` 回话。前置只需 host 编译 robotd/robotctl (debug) |
@@ -73,6 +75,25 @@ install -D -m 644 snd-aic3x.ko /lib/modules/$(uname -r)/extra/snd-aic3x.ko
 **不要用 aic31xx**: 那是 AIC3100/3110 家族, Page 0 寄存器语义不同, 装上后 DAC 永远不上电。
 
 音频的 mixer 配置、已知陷阱和验收方法见 [../docs/06-audio-aic3104.md](../docs/06-audio-aic3104.md)。
+
+## CSI 摄像头 (IMX219)
+
+板级只要两件事, 都在 `setup-board-a733.sh` / `apply-rootfs.sh` 里自动做:
+
+1. `csi-rail.dtbo` 进 `/boot/overlay-user/` 并写进 `user_overlays` — BLDO2 (VCC_3V3_CSI)
+   常开, 否则开机 30 秒后断电, 表现为「传感器 I2C 正常、就是没帧」。
+2. `/etc/modules-load.d/vin_v4l2.conf` — vendor 内核不带 vin 的自启规则。
+
+抓帧:
+
+```bash
+scripts/camera-snapshot.sh /dev/video0 /tmp/snap.raw 1   # 板上
+python3 scripts/cam-raw2png.py /tmp/snap.raw snap.png    # PC 上
+```
+
+**`--set-input=0` 不能省**: `vin_v4l2` 把 pipeline open (传感器上电/MCLK) 放在
+`VIDIOC_S_INPUT` 里, 只做 S_FMT + STREAMON 会静默地拿不到帧。完整链路与踩过的
+弯路见 [../docs/08-camera-tof.md](../docs/08-camera-tof.md)。
 
 ## 板子到手后
 

@@ -6,12 +6,12 @@
 
 | 项 | 器件 | 状态 |
 |---|---|---|
-| 摄像头 | IMX219 模组 (Raspberry Pi camera v2 兼容, 排线 CSI), 上游购物清单同款 160 度广角 | 未实测, 需板上验证 |
+| 摄像头 | IMX219 模组 (Raspberry Pi camera v2 兼容, 排线 CSI), 上游购物清单同款 160 度广角 | ✅ 抓帧实测通 (RG10 1920x1080), WebRTC 出流待 GStreamer |
 | ToF | VL53L5CX (VL53L5X V2) 模组, I2C 地址 0x29, 接 HAT 的 H1 排针 | 未实测, 需板上验证 |
 
 ## 摄像头
 
-### 结论: 不需要 overlay
+### 结论: 驱动不用改, 板级补两样东西
 
 A733 的原厂设备树 (`sun60i-a733-orangepi-zero3w.dtb`) 已经把 IMX219 配好并使能:
 
@@ -20,12 +20,68 @@ A733 的原厂设备树 (`sun60i-a733-orangepi-zero3w.dtb`) 已经把 IMX219 配
 
 摄像头走的是主控板自带的 CSI 相机座和专用 CCI 控制器, 与 HAT 的 40 排针和 I2C3 (codec/ToF 共用) 无关。内核模块 `imx219.ko` / `vin_v4l2.ko` 在镜像里都有 (vendor 内核 `kernel/bsp/drivers/vin/`)。
 
-排线直接插主控板上的 FPC 座即可。首次验证 (板子在线后):
+**出图只需要两件事**, 都跟驱动源码无关:
+
+1. **BLDO2 (VCC_3V3_CSI) 常开** — `hardware/overlay/csi-rail.dts` (已编好 dtbo)。
+   板级 DTS 里没有任何 consumer 引用这颗 LDO, 开机约 30 秒的 unused-regulator
+   sweep 会把它关掉。症状是「传感器 I2C 应答、格式能读, 但一帧不进来、中断恒 0」。
+   Armbian 有一份等价补丁 (`0008-orangepizero3w-keep-csi-camera-rail-always-on.patch`,
+   只给 `reg_bldo2` 加 `regulator-always-on`), 我们跑的内核没带, 所以用 overlay 补。
+2. **`vin_v4l2` 开机自动加载** — `modules-load.d/vin_v4l2.conf`。厂商不给它写
+   `modules-load` 也没有 udev 规则, 不写这一行开机根本没有 `/dev/video*`。
+
+另外**抓帧必须带 `VIDIOC_S_INPUT`** (见下), 这不是配置问题, 是这颗驱动的调用约定。
+
+### 抓帧: 必须先 S_INPUT
+
+`vin_v4l2` 把「打开 pipeline」放在 `VIDIOC_S_INPUT` 里而不是 `open()`:
 
 ```
-v4l2-ctl --list-devices
-dmesg | grep -iE 'imx219|vin'
+vin_open()          只置 VIN_LPM/VIN_BUSY
+vidioc_s_input()    → __vin_sensor_setup_link() + __vin_pipeline_open(prepare=true)
+                    → 传感器 s_power (开 MCLK、上电) + ISP/scaler init
+vidioc_streamon()   → __vin_pipeline_s_stream → 传感器 s_stream
 ```
+
+不调 S_INPUT 时 `S_FMT` 也能返回 0 (probe 阶段 prepare 过一遍), `STREAMON` 也
+不报错, 但传感器 `s_stream` 从不被调用、MCLK 一直是关的 —— 所以「设备在、
+格式能设、就是没图」。ftrace 对照过两种走法: 没有 S_INPUT 时整条链路上只有
+`__vin_sensor_setup_link` / `__vin_pipeline_s_stream`, 传感器侧的 `sensor_power`
+和 `sensor_s_stream` 一次都没进。
+
+```
+# 一条命令搞定 (每次 v4l2-ctl 都是新 open, S_INPUT 必须和抓帧同一个进程)
+v4l2-ctl -d /dev/video0 --set-input=0 \
+    --set-fmt-video=width=1920,height=1080,pixelformat=RG10 \
+    --stream-mmap=4 --stream-count=1 --stream-to=/tmp/snap.raw
+```
+
+脚本版: `scripts/camera-snapshot.sh`。抓到的是原始 Bayer (RG10 = 16-bit 小端、
+低 10 位、高度按 8 行对齐到 1088), 在 PC 上用 `scripts/cam-raw2png.py` 转 PNG。
+实测 1920x1080 单帧 4,177,920 B, 3 帧 12,533,760 B, 画面正常 (偏暗偏绿是没有
+ISP 调色, 不是坏)。
+
+![实测抓帧](images/camera-snap.png)
+
+本板实拍样张 (桌面/深色物体/木纹), 由上面那条命令抓的 raw 直接转出来, 没有经过
+任何 ISP 处理。
+
+`timeout` 一定要加: 驱动在失败路径上会卡在 DQBUF 里不返回; 被 timeout 杀掉之后
+下一次 STREAMON 会报 `video0 has already stream on`, 只有
+`modprobe -r vin_v4l2; modprobe -r imx219; modprobe -r vin_io; modprobe vin_v4l2`
+能清掉这个状态。
+
+### 别走的弯路 (都试过, 无效)
+
+- 改 `bsp/drivers/vin` 让 `vin_md_prepare_pipeline()` 认 disabled 链路, 重编
+  `vin_v4l2.ko` 上板 (能编过、S_FMT 从 EINVAL 变成 0, 但仍然没帧 —— 因为
+  真正缺的是 S_INPUT 带的 power/stream)。**结论: 驱动保持原厂, 别维护私编模块。**
+- 用 `media-ctl` 手动把 `imx219:0→sunxi_mipi.0`、`sunxi_csi.0→sunxi_tdm_rx.0`
+  两条链路置 ENABLED: 能让格式协商往前走一步, 但 `media_entity_setup_link`
+  不会走驱动的上电路径, 仍然没帧。
+- `dynamic debug` (`module vin_v4l2 +p`): 这版内核的 vin 打日志走自己的
+  `vin_log_mask` (`/sys/.../5830000.vinc/vin_log_mask`), 不是 pr_debug。
+- 从用户态读 imx219 寄存器: CCI 驱动独占 `/dev/i2c-11`, `I2C_SLAVE` 报 EBUSY。
 
 ### mediad (视频流)
 
@@ -36,6 +92,14 @@ dmesg | grep -iE 'imx219|vin'
 3. **mediad 二进制**: 本仓不预编译分发, 交叉编译方法见 docs/05。
 
 A733 侧的硬件编码器 (Radxa 路线用的 mpph264enc 是 RK 专属) 尚未验证; 全志 ve 硬件编码在 vendor 内核里有 bsp 驱动, GStreamer 插件是否存在要板上确认。没有硬件编码器时 webrtcsink 会退到软件 x264, 1GB 内存版可能吃紧。
+
+**A733 上还有一个前提没打通**: 板子现在**没有装 GStreamer** (`gst-launch-1.0`
+不存在), 所以 mediad 只能装二进制、起不来; 而且 mediad 的采集是
+`v4l2src` (`pipeline.rs` 的 `camera_source()`), `v4l2src` 不会发
+`VIDIOC_S_INPUT` —— 照本页上面那条规则, 它在 A733 上会「格式设上了但拿不到帧」。
+要让摄像头进 WebRTC, 得先按上游装上 GStreamer/webrtcsink 那一套, 再在
+mediad 里补一次 S_INPUT (或在 `v4l2src` 之前用 `v4l2src` 的 device fd 调一次)。
+摄像头不在鸭子走路/站立的关键路径上, 这件事排在镜像之后。
 
 安装顺序 (板子在线后):
 

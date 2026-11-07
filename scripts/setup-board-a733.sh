@@ -46,6 +46,7 @@ ENV_TXT=/boot/armbianEnv.txt
 OVERLAY_USER_DIR=/boot/overlay-user
 UART2_OVERLAY_NAME=uart2-dxl
 AUDIO_OVERLAY_NAME=audio-a733
+CSI_OVERLAY_NAME=csi-rail
 BT_CONF=/etc/bluetooth/main.conf
 BT_INPUT_CONF=/etc/bluetooth/input.conf
 WEIRD_BLE_MARKER=/var/lib/robot/weird-ble
@@ -137,6 +138,61 @@ install_uart2_overlay() {
     if systemctl is-enabled serial-getty@ttyS2.service >/dev/null 2>&1; then
         say "masking serial-getty@ttyS2 (it would eat servo replies)"
         systemctl mask serial-getty@ttyS2.service >/dev/null 2>&1 || true
+    fi
+}
+
+# ── 1b. 摄像头：CSI 供电常开 + vin_v4l2 自启 ────────────────────────────────
+# 两件都是板级配置，不动驱动源码（详见 docs/08）：
+#   csi-rail        BLDO2（VCC_3V3_CSI）没有 DT consumer，开机 30 秒的
+#                   unused-regulator sweep 会把它关掉 → 传感器 I2C 还在、没帧。
+#                   Armbian 有等价补丁（0008-...csi-camera-rail-always-on），
+#                   我们跑的内核没带，所以用 overlay 补 regulator-always-on。
+#   vin_v4l2 自启   vendor 内核没有 vin 的 modules-load/udev 规则，不写这行
+#                   开机根本没有 /dev/video*。
+# 注：抓帧还必须带 VIDIOC_S_INPUT（驱动把 pipeline open 放在 S_INPUT 里），
+#     这不是配置能替代的，见 scripts/camera-snapshot.sh。
+install_csi_rail_overlay() {
+    say "camera: installing ${CSI_OVERLAY_NAME} overlay (VCC_3V3_CSI always on)"
+
+    src_dts="${script_dir}/../hardware/overlay/${CSI_OVERLAY_NAME}.dts"
+    src_dtbo="${script_dir}/../hardware/overlay/${CSI_OVERLAY_NAME}.dtbo"
+    [ -f "$src_dtbo" ] || src_dtbo=""
+
+    local built=""
+    if [ -n "$src_dtbo" ]; then
+        built="$src_dtbo"
+    elif [ -f "$src_dts" ] && command -v dtc >/dev/null 2>&1; then
+        built="$(mktemp)"; built="${built}.dtbo"
+        if dtc -@ -I dts -O dtb -o "$built" "$src_dts" 2>/dev/null; then
+            say "compiled ${src_dts} with dtc"
+        else
+            warn "dtc could not compile ${src_dts}"
+            built=""
+        fi
+    else
+        warn "no ${src_dtbo} and (no ${src_dts} or no dtc) — camera rail stays power-managed
+  The sensor will answer on I2C but never deliver a frame."
+    fi
+
+    if [ -n "$built" ]; then
+        mkdir -p "$OVERLAY_USER_DIR"
+        dst="${OVERLAY_USER_DIR}/${CSI_OVERLAY_NAME}.dtbo"
+        if [ ! -f "$dst" ] || ! cmp -s "$built" "$dst"; then
+            cp "$built" "$dst"
+            needs_reboot=1
+        fi
+        ensure_user_overlay_word "$CSI_OVERLAY_NAME"
+    fi
+
+    # vin_v4l2 自启：vendor 内核的 vin 模块既不 auto-load 也没有 udev 规则。
+    if [ ! -f /etc/modules-load.d/vin_v4l2.conf ]; then
+        mkdir -p /etc/modules-load.d
+        printf 'vin_v4l2\n' > /etc/modules-load.d/vin_v4l2.conf
+        say "camera: vin_v4l2 will load at boot (/etc/modules-load.d/vin_v4l2.conf)"
+    fi
+    if ! lsmod | grep -q '^vin_v4l2'; then
+        modprobe vin_v4l2 2>/dev/null && say "camera: vin_v4l2 loaded now" \
+            || warn "modprobe vin_v4l2 failed; /dev/video* will be missing"
     fi
 }
 
@@ -481,6 +537,17 @@ report() {
         pads="${pads}${node} "
     done
     printf '  %-22s %s\n' "gamepad" "${pads:-none connected}"
+
+    # 摄像头：能抓帧 = vin_v4l2 在 + video0 在 + CSI 供电常开（csi-rail overlay）
+    if [ ! -e /dev/video0 ]; then
+        printf '  %-22s %s\n' "camera (CSI)" "no /dev/video0 — modprobe vin_v4l2 / csi-rail overlay missing"
+    elif ! grep -q '^vin_v4l2$' /etc/modules-load.d/vin_v4l2.conf 2>/dev/null; then
+        printf '  %-22s %s\n' "camera (CSI)" "/dev/video0 present, but not set to load at boot"
+    elif [ ! -f "${OVERLAY_USER_DIR}/${CSI_OVERLAY_NAME}.dtbo" ]; then
+        printf '  %-22s %s\n' "camera (CSI)" "/dev/video0 present, but ${CSI_OVERLAY_NAME} overlay missing (rail will power down)"
+    else
+        printf '  %-22s %s\n' "camera (CSI)" "/dev/video0 ready — capture needs --set-input=0 (scripts/camera-snapshot.sh)"
+    fi
 }
 
 if [ "$STATUS_ONLY" = 1 ]; then
@@ -490,6 +557,7 @@ fi
 
 # ── 执行 ────────────────────────────────────────────────────────────────────
 install_uart2_overlay
+install_csi_rail_overlay
 configure_onnx
 configure_policies
 configure_audio

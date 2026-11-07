@@ -23,7 +23,7 @@
 | 物料 | 说明 |
 | --- | --- |
 | ToF 测距模块 | VL53L5X V2 (I2C, 接 HAT H1 4P 排针); 用于拾取检测 |
-| CSI 摄像头 | IMX219 (Radxa ROCK 5 摄像头同款, 22P RPI 序 FPC, 两个 CAM 座任插); 视频链依赖未部署的 mediad, 见 docs/03 §B |
+| CSI 摄像头 | IMX219 (Radxa ROCK 5 摄像头同款, 22P RPI 序 FPC, 两个 CAM 座任插); 抓帧已通, 视频链还差 GStreamer/mediad, 见 docs/08 |
 
 3D 打印件与机壳: 不在本仓, 从 [官方 microduck](https://github.com/pollen-robotics/microduck) (MJCF/STL)
   或 [kissqy 发布包](https://github.com/kissqy/Microduck-kissqy) 取。
@@ -72,7 +72,7 @@ docs/
   05-bringup-runbook.md 从源码构建 (开发者): clone -> 编译 -> 镜像 -> 烧卡 -> 验收 -> 标定
   06-audio-aic3104.md   音频: codec 接线, 驱动/overlay 要点, mixer, 自检与踩坑
   07-imu-firmware.md    IMU 板与固件: 为什么自己维护, 三端波特率档位, 供电与排障
-  08-camera-tof.md      摄像头与 ToF: CSI 无需 overlay, mediad/tofd 依赖与启用
+  08-camera-tof.md      摄像头与 ToF: CSI 抓帧要 S_INPUT, csi-rail overlay, mediad/tofd 依赖与启用
 runtime/               运行时源码 submodule (Jimzjy/microduck-runtime, 分支 opi3w-feetech), clone 时加 --recurse-submodules
 patches/
   runtime-opi3w-feetech.patch   运行时差分快照 (基线 daemon-v0.17.9 -> 3c74775; 最新代码看 runtime/ submodule)
@@ -80,7 +80,7 @@ patches/
 hardware/
   eda/                  EasyEDA Pro 工程: HAT REV B + IMU v2 (取自 replica, 已快照进本仓); HUB/POGO 板用 replica 仓的工程
   imu-firmware/         IMU 板固件源码 + GCC 构建 + 预置 hex (500 kbps 版)
-  overlay/              A733 设备树 overlay (uart2-dxl.dts, audio-a733.dts)
+  overlay/              A733 设备树 overlay (uart2-dxl.dts, audio-a733.dts, csi-rail.dts)
   hat-layout.md         HAT 网表, BOM, 每处改动的理由
   pinmap.md             40-pin 重映射 + A733 控制器实证
   imu-layout.md         IMU 板连接器, 电源, 数据通路, 固件
@@ -101,6 +101,7 @@ firmware/               git submodule: kissqy/Microduck-kissqy @ eccc2fdb
 | HAT 原理图 | ✅ REV B 已送厂 |
 | 排针重映射 + overlay | ✅ 编译与应用验证通过 |
 | aic3x codec 内核模块 | ✅ 上板原生编译 `snd-aic3x.ko`, vermagic 与 vendor 内核一致 |
+| CSI 摄像头 (IMX219) | ✅ 抓帧实测 1920x1080 RG10 (单帧 4,177,920 B), 画面正常; 板级需 `csi-rail` overlay + `vin_v4l2` 自启, 抓帧必须带 `--set-input=0` ([docs/08](docs/08-camera-tof.md)) |
 | 音频 (喇叭 + 麦克风) | ✅ 出声与录音实测通过, mixer 由开机服务持久化 ([docs/06](docs/06-audio-aic3104.md)) |
 | A733 系统镜像 | ✅ 组装流程闭环 (含 1GB bootloader 修复), **真机首启验收通过**: robotd 开机自启, health 正常回话 |
 | 板侧依赖 (ONNX Runtime, GStreamer) / 装配 / 标定 / 试走 | ⏳ 等实物装配与标定 |

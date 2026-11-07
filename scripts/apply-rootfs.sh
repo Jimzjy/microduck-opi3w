@@ -9,8 +9,12 @@
 #
 # 做的事（幂等）：
 #   1. looper 分区挂载底图 rootfs
-#   2. overlay：uart2-dxl.dtbo + audio-a733.dtbo → /boot/overlay-user/，
-#      armbianEnv.txt 追加 user_overlays=uart2-dxl audio-a733
+#   2. overlay：uart2-dxl.dtbo + audio-a733.dtbo + csi-rail.dtbo →
+#      /boot/overlay-user/，armbianEnv.txt 追加
+#      user_overlays=uart2-dxl audio-a733 csi-rail
+#      （csi-rail = BLDO2/VCC_3V3_CSI 常开，不然摄像头 30 秒后断电没帧，见 docs/08）
+#      同时写 /etc/modules-load.d/vin_v4l2.conf：vendor 内核不带 vin 的自启规则，
+#      不写这行开机没有 /dev/video*
 #   3. 板侧脚本 setup-board-a733.sh → /usr/local/sbin/，
 #      并装 microduck-firstboot.service（首次开机自动跑一次）
 #   4. 可选 --payload <目录>：整体拷进 /opt/robot/payload/（固件二进制、robotd.toml、
@@ -91,7 +95,7 @@ REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OVERLAY_DIR="$REPO_DIR/hardware/overlay"
 SETUP_SH="$REPO_DIR/scripts/setup-board-a733.sh"
 
-for f in "$OVERLAY_DIR/uart2-dxl.dtbo" "$OVERLAY_DIR/audio-a733.dtbo" "$SETUP_SH"; do
+for f in "$OVERLAY_DIR/uart2-dxl.dtbo" "$OVERLAY_DIR/audio-a733.dtbo" "$OVERLAY_DIR/csi-rail.dtbo" "$SETUP_SH"; do
 	[ -f "$f" ] || die "missing: $f（dtbo 用 dtc -@ 编译 .dts 生成）"
 done
 
@@ -146,16 +150,22 @@ fi
 mkdir -p "$MNT/boot/overlay-user"
 install -m 0644 "$OVERLAY_DIR/uart2-dxl.dtbo" "$MNT/boot/overlay-user/"
 install -m 0644 "$OVERLAY_DIR/audio-a733.dtbo" "$MNT/boot/overlay-user/"
+install -m 0644 "$OVERLAY_DIR/csi-rail.dtbo" "$MNT/boot/overlay-user/"
 
 ENV_TXT="$MNT/boot/armbianEnv.txt"
 [ -f "$ENV_TXT" ] || die "armbianEnv.txt not found in image"
 # 幂等：已有 user_overlays 行就整体替换，没有就追加
 if grep -q '^user_overlays=' "$ENV_TXT"; then
-	sed -i 's/^user_overlays=.*/user_overlays=uart2-dxl audio-a733/' "$ENV_TXT"
+	sed -i 's/^user_overlays=.*/user_overlays=uart2-dxl audio-a733 csi-rail/' "$ENV_TXT"
 else
-	printf 'user_overlays=uart2-dxl audio-a733\n' >>"$ENV_TXT"
+	printf 'user_overlays=uart2-dxl audio-a733 csi-rail\n' >>"$ENV_TXT"
 fi
-say ">> overlays installed, user_overlays=uart2-dxl audio-a733"
+say ">> overlays installed, user_overlays=uart2-dxl audio-a733 csi-rail"
+
+# vin_v4l2 自启（CSI 摄像头）。没有它 /dev/video* 开机不存在；mediad/抓帧都要它。
+mkdir -p "$MNT/etc/modules-load.d"
+printf 'vin_v4l2\n' >"$MNT/etc/modules-load.d/vin_v4l2.conf"
+say ">> vin_v4l2 will load at boot (modules-load.d)"
 
 # ── 2. 板侧 bring-up + firstboot 服务 ────────────────────────────────────────
 install -m 0755 "$SETUP_SH" "$MNT/usr/local/sbin/setup-board-a733.sh"

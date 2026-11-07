@@ -1,0 +1,48 @@
+// microduck-opi3w / A733 CSI 相机电源常开 overlay
+//
+// 为什么需要它（实测，不是推测）：
+//   Orange Pi Zero 3W 的 CSI 相机座由 AXP8191 的 BLDO2（VCC_3V3_CSI）供电，
+//   但板级 DTS 里没有任何 consumer 引用它（只有两个 disabled 节点：dsi_panel、
+//   twi7）。于是开机约 30 秒后的 unused-regulator sweep 会把它关掉：
+//     /sys/class/regulator/regulator.25/state = disabled
+//     /sys/kernel/debug/regulator/regulator_summary: axp8191-bldo2 use_count 0
+//   症状极具误导性：IMX219 在 I2C 上照样被 probe 到、subdev 也能读格式，
+//   但采不到一帧、中断计数恒为 0。
+//
+//   这不是我们独有的问题：Armbian 自己有一份补丁
+//     patch/kernel/archive/sun60iw2-opi-vendor/0008-orangepizero3w-keep-csi-camera-rail-always-on.patch
+//   内容就是给 reg_bldo2 加 regulator-always-on；我们跑的内核没带这份补丁，
+//   所以用 overlay 在板子上补同样的属性（不需要重编内核）。
+//
+// 写法说明：
+//   target = <0x57> 是 bldo2 在本板 DTB 里的 phandle。用数字 target 而不是
+//   target-path，是因为 u-boot 的 fdt apply 对 target phandle 一定支持；改过
+//   DTB 之后要重新取一次：
+//     fdtget /boot/dtb-*/allwinner/sun60i-a733-orangepi-zero3w.dtb \
+//            /soc@3000000/twi@7083000/pmu@36/regulators@0/bldo2 phandle
+//   （vendor 内核 6.6.98 上实测 = 87 = 0x57）
+//
+// 用法（Armbian）：
+//   dtc -@ -I dts -O dtb -o csi-rail.dtbo csi-rail.dts
+//   cp csi-rail.dtbo /boot/overlay-user/
+//   # /boot/armbianEnv.txt 的 user_overlays 加一个词：
+//   #   user_overlays=uart2-dxl audio-a733 csi-rail
+//   重启后验证：
+//   cat /sys/class/regulator/regulator.*/name | ...  # 找到 bldo2 后看 state = enabled
+//   grep -c 'regulator-always-on' /proc/device-tree/soc@3000000/twi@7083000/pmu@36/regulators@0/bldo2/* 2>/dev/null
+//
+// 注意：这是「板级供电兜底」。更干净的长期做法是给传感器写
+// sensor0_iovdd-supply = <&reg_bldo2>（Armbian 补丁注释里也这么说），
+// 但那要改基础 DTB，镜像构建时才做得了。
+/dts-v1/;
+/plugin/;
+
+/ {
+	fragment@0 {
+		target = <0x57>;
+
+		__overlay__ {
+			regulator-always-on;
+		};
+	};
+};
