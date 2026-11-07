@@ -97,14 +97,21 @@ ISP 调色, 不是坏)。
 - `v4l2src` 不发 `VIDIOC_S_INPUT`, 而 A733 的 vin 把整条链路的 prepare 放在 S_INPUT 里;
 - 驱动列的 ISP 格式(NV16/422P/RGB3…)能协商、能出帧, 但内容是没调过的原始数据或黑帧(实测 NV16 解出来 luma 均值 36, 图里什么都没有; RGB3 是一片暗紫), 只有 RG10 是真的画面。
 
-所以 mediad 在 `v4l2-ctl --list-formats` 里看到 Bayer fourcc 时, 自己起一条 `v4l2-ctl --set-input=0 --set-fmt-video=...RG10 --stream-mmap --stream-to=-`, 按帧读进 `appsrc`, 后面接 `bayer2rgb ! videoscale ! videoconvert` 变成管线要求的 UYVY。高度按 8 行对齐(1080 → 1088), 由 `videoscale` 裁回去。1080p 软件 debayer 在 A733 八核上实测 32 fps, 720p 默认档位够用。
+所以 mediad 在 `v4l2-ctl --list-formats` 里看到 Bayer fourcc 时, 自己起一条 `v4l2-ctl --set-input=0 --set-fmt-video=...RG10 --stream-mmap --stream-to=<fifo>`, 按帧读进 `appsrc`, 后面接 `bayer2rgb ! videocrop ! videoscale ! videoconvert` 变成管线要求的 UYVY。高度按 8 行对齐(1080 → 1088)由 `videocrop` 裁掉。
 
-**必须带 `--no-auto-exposure`**: mediad 的测光环写的是 `exposure` + `analogue_gain`, 而 vendor 驱动的控制叫 `exposure` + `gain`, 整条写会失败。驱动自己的自动曝光是开着的, 让它管亮度即可。
+两个容易踩的点, 都是实测出来的:
+
+- **抓帧必须走 FIFO, 不能用 `--stream-to=-`**。`v4l2-ctl` 会把 `Video input set to 0 (sunxi-vin: Camera, ok)` 打到 **stdout**(`--silent` 也压不住), 于是整条视频流前面多了 45 字节, 每一帧都提前 45 字节被读走, 出来的图是一片纯白(均值 233)。
+- **按档位抓, 不要按传感器原生 1080p 抓**。VIN 的 scaler 真的能缩 raw, 而线宽就是帧率: 1080p raw 只有 13.6 fps, 原生 720p 26 fps, 而 debayer + convert 单独跑是 61 fps —— 瓶颈在抓帧带宽。
+
+**亮度靠私有 ioctl, 标准 V4L2 控件在这颗驱动上是空转的**: 对 `/dev/video0` 和 `/dev/v4l-subdev0` 写 `exposure=19200,gain=409600`, `--get-ctrl` 能读回写入值, 但画面与默认逐字节相同。真正生效的是 `VIDIOC_VIN_SENSOR_EXP_GAIN`(`_IOWR('V', 192+61, 32)` = `0xc02056fd`), 参数是内核头 `bsp/include/media/sunxi_camera_v2.h` 里的 **8 个 int**(`exp_val` 是 行数<<4, `gain_val` 是 16/倍, 驱动夹在 [16,159] 即 9.94x)。`mediad` 的 `sensorctl.rs` 走的正是这条路, 所以 **自动曝光现在是开着的、也是有效的**, 不需要 `--no-auto-exposure`。
+
+这条 raw 路径上没有 ISP, 因此没有数字增益; 亮度的天花板就是「快门行数 × 模拟增益」。实测(开灯的房间): 1200 行 × 9.9x 只有 luma 61, 而驱动是拿快门当帧长用的, 所以把上限提到 2400 行可以到 luma 79.6 —— 代价是 23 fps(1200 行时约 30 fps)。
 
 ```
 sudo apt install v4l-utils
 sudo scripts/setup-gstreamer.sh            # GStreamer + webrtcsink
-sudo /usr/local/bin/mediad --no-auto-exposure
+sudo systemctl restart mediad
 ```
 
 A733 侧的硬件编码器 (Radxa 路线用的 mpph264enc 是 RK 专属) 尚未验证; 没有硬件编码器时 webrtcsink 会退到软件 H.264 (`openh264enc`), 1GB 内存版可能吃紧 —— 所以默认先用 720p 档位。
