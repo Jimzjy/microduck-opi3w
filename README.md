@@ -23,7 +23,7 @@
 | 物料 | 说明 |
 | --- | --- |
 | ToF 测距模块 | VL53L5X V2 (I2C, 接 HAT H1 4P 排针); 用于拾取检测 |
-| CSI 摄像头 | IMX219 (Radxa ROCK 5 摄像头同款, 22P RPI 序 FPC, 两个 CAM 座任插); 抓帧已通, 视频链还差 GStreamer/mediad, 见 docs/08 |
+| CSI 摄像头 | IMX219 (Radxa ROCK 5 摄像头同款, 22P RPI 序 FPC, 两个 CAM 座任插); 抓帧与 WebRTC 出流均已实测通过, 见 docs/08 |
 
 3D 打印件与机壳: 不在本仓, 从 [官方 microduck](https://github.com/pollen-robotics/microduck) (MJCF/STL)
   或 [kissqy 发布包](https://github.com/kissqy/Microduck-kissqy) 取。
@@ -101,10 +101,11 @@ firmware/               git submodule: kissqy/Microduck-kissqy @ eccc2fdb
 | HAT 原理图 | ✅ REV B 已送厂 |
 | 排针重映射 + overlay | ✅ 编译与应用验证通过 |
 | aic3x codec 内核模块 | ✅ 上板原生编译 `snd-aic3x.ko`, vermagic 与 vendor 内核一致 |
-| CSI 摄像头 (IMX219) | ✅ 抓帧实测 1920x1080 RG10 (单帧 4,177,920 B), 画面正常; 板级需 `csi-rail` overlay + `vin_v4l2` 自启, 抓帧必须带 `--set-input=0` ([docs/08](docs/08-camera-tof.md)) |
+| CSI 摄像头 (IMX219) | ✅ 端到端实测通过: 1920x1080 RG10 抓帧 (单帧 4,177,920 B) + `mediad` 以 720p 经 WebRTC 出流, 浏览器控制台 http://<板>:8080/ 可见实时画面; 自动曝光走私有 ioctl `VIDIOC_VIN_SENSOR_EXP_GAIN`, 开灯房间稳定在均值 ~80 / 23 fps。板级需 `csi-rail` overlay + `vin_v4l2` 自启 + GStreamer/webrtcsink ([docs/08](docs/08-camera-tof.md)) |
+| ToF 测距 (VL53L5CX) | ✅ 上板实测通过: 15 Hz 持续测距, `/run/tofd/tof.sock` 出 8x8 距离阵; I2C 走 udev 别名 `/dev/i2c-pihat`, `tofd` 装好后**默认不 enable** (没插传感器时会重启循环) ([docs/08](docs/08-camera-tof.md)) |
 | 音频 (喇叭 + 麦克风) | ✅ 出声与录音实测通过, mixer 由开机服务持久化 ([docs/06](docs/06-audio-aic3104.md)) |
 | A733 系统镜像 | ✅ 组装流程闭环 (含 1GB bootloader 修复), **真机首启验收通过**: robotd 开机自启, health 正常回话 |
-| 板侧依赖 (ONNX Runtime, GStreamer) / 装配 / 标定 / 试走 | ⏳ 等实物装配与标定 |
+| 站立与行走 | ✅ 实测: `robot init` 后躯干倾角 2.4–3.6°, 策略接管后 `scripts/pad-walk.py` 前进实测 19 cm |
 
 ## 许可
 

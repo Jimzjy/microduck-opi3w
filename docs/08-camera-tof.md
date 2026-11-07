@@ -6,7 +6,7 @@
 
 | 项 | 器件 | 状态 |
 |---|---|---|
-| 摄像头 | IMX219 模组 (Raspberry Pi camera v2 兼容, 排线 CSI), 上游购物清单同款 160 度广角 | ✅ 抓帧实测通 (RG10 1920x1080), WebRTC 出流待 GStreamer |
+| 摄像头 | IMX219 模组 (Raspberry Pi camera v2 兼容, 排线 CSI), 上游购物清单同款 160 度广角 | ✅ 端到端实测通: RG10 抓帧 + `mediad` 720p WebRTC 出流, 控制台可见实时画面 |
 | ToF | VL53L5CX (VL53L5X V2) 模组, I2C 地址 0x29, 接 HAT 的 H1 排针 | 未实测, 需板上验证 |
 
 ## 摄像头
