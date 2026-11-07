@@ -123,10 +123,22 @@ def main():
     st = state()
     policy = st.get("policy")
     print("policy: %s" % policy)
-    if policy not in POLICY_RUNNING:
-        # init 只负责上扭矩、走到 home；坐在座位上时它不会自己起来
-        # （日志：the robot is sitting — holding the seat, not re-homing）。
-        # 真正让策略接管是 robot enable，它没有 Start 那种开关歧义。
+    if policy == "sit":
+        # 坐着时 init 不会起来（the robot is sitting — holding the seat），
+        # robotd 自己的起身动作是一次 sit_toggle 技能。
+        subprocess.run([ROBOTCTL, "robot", "do", "sit_toggle", "--json"],
+                       capture_output=True)
+        deadline = time.time() + args.wait
+        while time.time() < deadline:
+            time.sleep(0.7)
+            policy = state().get("policy")
+            if policy in POLICY_RUNNING:
+                break
+        print("policy: %s" % policy)
+        time.sleep(2.0)                # the rise itself takes a couple of seconds
+    elif policy not in POLICY_RUNNING:
+        # 待机（held）：上扭矩到 home，然后把机器人交给策略。enable 没有
+        # Start 那种开关歧义（Start 在策略跑着的时候按下去是关策略）。
         subprocess.run([ROBOTCTL, "robot", "init", "--json"], capture_output=True)
         time.sleep(0.5)
         subprocess.run([ROBOTCTL, "robot", "enable", "--json"], capture_output=True)
@@ -137,7 +149,7 @@ def main():
             if policy in POLICY_RUNNING:
                 break
         print("policy: %s" % policy)
-        time.sleep(1.0)                # let the ramp / sitstand hand-off finish
+        time.sleep(1.0)                # let the ramp finish
 
     if args.forward > 0:
         ly = FULL * max(0.0, min(1.0, args.speed / VX_MAX))
