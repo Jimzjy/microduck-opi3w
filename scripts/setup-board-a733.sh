@@ -150,6 +150,16 @@ configure_onnx() {
         say "onnx: already present in /usr/local/lib"
         return 0
     fi
+    # 镜像自带这份库 (payload/onnx): 首开没有到 GitHub 的路也能把策略栈装好。
+    local payload_so
+    payload_so=$(find /opt/robot/payload/onnx -maxdepth 1 -name 'libonnxruntime.so.*' 2>/dev/null | head -1 || true)
+    if [ -n "$payload_so" ]; then
+        install -m 644 "$payload_so" /usr/local/lib/
+        ln -sfn "/usr/local/lib/$(basename "$payload_so")" /usr/local/lib/libonnxruntime.so
+        ldconfig
+        say "onnx: installed from payload ($(basename "$payload_so"))"
+        return 0
+    fi
     say "onnx: installing ONNX Runtime aarch64 ${ONNX_VERSION}"
     tmp=$(mktemp -d)
     url="https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/onnxruntime-linux-aarch64-${ONNX_VERSION}.tgz"
@@ -168,6 +178,25 @@ configure_onnx() {
     rm -rf "$tmp"
 }
 
+# ── 2b. 策略网络（payload/policies → /opt/robot/policies/current）────────────
+# robotd 的 POLICY_DIR 是 /opt/robot/policies/current（robotd-params/src/lib.rs:46）：
+# walk 用 velstand.onnx，sitstand/ground_pick/kicks/roulade 各有自己的模型。
+# 板上访问 huggingface 不通，所以模型跟着镜像走，不靠首开在线 seed。
+configure_policies() {
+    local src=/opt/robot/payload/policies
+    if [ ! -d "$src" ]; then
+        say "policies: no payload/policies — skip (策略不会加载，鸭子只能保持站姿)"
+        return 0
+    fi
+    if [ -f /opt/robot/policies/current/velstand.onnx ]; then
+        say "policies: already installed in /opt/robot/policies/current"
+        return 0
+    fi
+    mkdir -p /opt/robot/policies/current
+    cp -a "$src"/. /opt/robot/policies/current/
+    say "policies: installed $(ls /opt/robot/policies/current | tr '\n' ' ')"
+}
+
 # ── 3. 音频：TLV320AIC3104（fail-soft，与上游同一原则）───────────────────────
 # 驱动是 snd-aic3x（AIC3x 家族，不是 aic31xx），vendor 内核没编，out-of-tree 构建见
 # scripts/aic3x-module/README.md；缺模块只警告。
@@ -177,9 +206,26 @@ configure_audio() {
     say "audio: TLV320AIC3104 bring-up (fail-soft)"
     if ! modinfo snd-aic3x >/dev/null 2>&1 \
         && ! find "/lib/modules/$(uname -r)" -name 'snd-aic3x*' 2>/dev/null | grep -q .; then
-        warn "kernel module snd-aic3x not found (Armbian vendor kernel has
+        ko_src=/opt/robot/payload/modules/snd-aic3x.ko
+        if [ -f "$ko_src" ]; then
+            # 镜像 payload 里带着这颗 out-of-tree 模块, 装进 extra/ 让 depmod 建 obj 别名,
+            # 重启后 overlay 的 codec 节点会自动把它拉起来。
+            ko_dir="/lib/modules/$(uname -r)/extra"
+            mkdir -p "$ko_dir"
+            install -m 644 "$ko_src" "$ko_dir/snd-aic3x.ko"
+            depmod -a "$(uname -r)" || true
+            needs_reboot=1
+            say "audio: installed snd-aic3x.ko from payload into $ko_dir (reboot to bind)"
+        else
+            warn "kernel module snd-aic3x not found (Armbian vendor kernel has
   CONFIG_SND_SOC_TLV320AIC3X unset) — codec will not bind even with the overlay.
   Build it on the board: see scripts/aic3x-module/README.md."
+        fi
+    fi
+    # aic31xx 是 AIC3100/3110 家族, 寄存器表不同, 却和 aic3x 匹配同一个 compatible:
+    # 万一它先绑上, DAC/驱动块永远不置位上电、喇叭和麦克风都哑。黑名单掉。
+    if [ ! -f /etc/modprobe.d/blacklist-tlv320aic31xx.conf ]; then
+        echo 'blacklist snd_soc_tlv320aic31xx' > /etc/modprobe.d/blacklist-tlv320aic31xx.conf
     fi
     audio_pkgs="alsa-utils i2c-tools"
     missing=""
@@ -445,6 +491,7 @@ fi
 # ── 执行 ────────────────────────────────────────────────────────────────────
 install_uart2_overlay
 configure_onnx
+configure_policies
 configure_audio
 configure_tof
 configure_bluetooth

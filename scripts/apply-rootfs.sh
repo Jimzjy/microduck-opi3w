@@ -229,6 +229,15 @@ if [ -n "$MODULE_KO" ]; then
 		"$MNT/lib/modules/$KVER/kernel/sound/soc/codecs/$(basename "$MODULE_KO")"
 	depmod -b "$MNT" "$KVER"
 	say ">> module installed for $KVER: $(basename "$MODULE_KO")"
+	# codec 模块是 aic3x 家族时必须黑名单 aic31xx：后者寄存器表不同却匹配同一个
+	# compatible，先绑上就永远不出声（DAC/驱动块不置位上电）。镜像里烘进去，
+	# 免得首开脚本没跑到时又被它抢先。
+	if [ "$(basename "$MODULE_KO")" = "snd-aic3x.ko" ]; then
+		mkdir -p "$MNT/etc/modprobe.d"
+		echo 'blacklist snd_soc_tlv320aic31xx' \
+			>"$MNT/etc/modprobe.d/blacklist-tlv320aic31xx.conf"
+		say ">> blacklisted snd_soc_tlv320aic31xx (aic3x owns the codec)"
+	fi
 fi
 
 # ── 5. 可选 payload ──────────────────────────────────────────────────────────
@@ -237,6 +246,14 @@ if [ -n "$PAYLOAD_DIR" ]; then
 	mkdir -p "$MNT/opt/robot/payload"
 	cp -a "$PAYLOAD_DIR"/. "$MNT/opt/robot/payload/"
 	say ">> payload copied to /opt/robot/payload/ ($(du -sh "$MNT/opt/robot/payload" | cut -f1))"
+
+	# payload 里带策略网络时，直接落到运行时读的那条路径上：
+	# robotd 的 POLICY_DIR 是 /opt/robot/policies/current（robotd-params/src/lib.rs:46）。
+	if [ -d "$MNT/opt/robot/payload/policies" ]; then
+		mkdir -p "$MNT/opt/robot/policies/current"
+		cp -a "$MNT/opt/robot/payload/policies"/. "$MNT/opt/robot/policies/current/"
+		say ">> policies installed to /opt/robot/policies/current ($(ls "$MNT/opt/robot/policies/current" | tr '\n' ' '))"
+	fi
 else
 	say ">> no --payload given, skip (固件二进制可在板上手工安装)"
 fi
