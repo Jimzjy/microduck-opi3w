@@ -84,6 +84,7 @@ hardware/
   hat-layout.md         HAT 网表, BOM, 每处改动的理由
   pinmap.md             40-pin 重映射 + A733 控制器实证
   imu-layout.md         IMU 板连接器, 电源, 数据通路, 固件
+  cad/                  整机 3D 模型 (microduck-FT.3mf)
 scripts/                构建与部署 (见 scripts/README.md)
 firmware/               git submodule: kissqy/Microduck-kissqy @ eccc2fdb
 ```

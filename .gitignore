@@ -18,3 +18,4 @@ vendor/
 # 构建产物
 target/
 *.dtbo
+__pycache__/

@@ -1,0 +1,15 @@
+[Unit]
+Description=First-boot WiFi provisioning (setup access point)
+# Runs on every boot; exits quickly when already provisioned (marker) or when
+# the existing WiFi config associates on its own.
+After=network.target wpa_supplicant.service systemd-networkd.service
+Wants=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/duck-setup-ap.sh
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
