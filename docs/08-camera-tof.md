@@ -87,27 +87,27 @@ ISP 调色, 不是坏)。
 
 `mediad` 从 CSI 读流并经 WebRTC 推给浏览器, 依赖三层:
 
-1. **GStreamer 运行时** (apt): `gstreamer1.0-plugins-bad` (webrtcbin), `gstreamer1.0-nice`。上游 `scripts/setup-gstreamer.sh` 负责安装, 版本基线见上游 `docs/project/media-bringup.md`。
-2. **webrtcsink**: 属于 gst-plugins-rs, Debian 没有包, 要用 cargo-c 从源码构建, 装到 `/usr/local/lib/gstreamer-1.0` 并在 service 里加 `Environment=GST_PLUGIN_PATH=/usr/local/lib/gstreamer-1.0`。版本要 >= 0.14.5 (含 webrtcsink 死锁修复), 上游用 0.15.3。
-3. **mediad 二进制**: 本仓不预编译分发, 交叉编译方法见 docs/05。
+1. **GStreamer 运行时** (apt): tools + plugins-base/good/bad/ugly + `gstreamer1.0-nice`, 外加 `v4l-utils`。一条命令: `scripts/setup-gstreamer.sh --mirror`(国内网络)或 `scripts/setup-gstreamer.sh`。
+2. **webrtcsink**: 属于 gst-plugins-rs, Debian **任何 suite 都没有**。不用在板子上编 Rust —— 上游已经从 0.15.3 编好 A733 可用的 `microduck-gst-plugins-v3-aarch64.tar.gz`(release v3), `setup-gstreamer.sh` 会带 sha256 校验装 `libgstrswebrtc.so` + `libgstrsrtp.so` 到 `$(pkg-config --variable=pluginsdir gstreamer-1.0)`。板子上没有 cargo, 这条路也不该走。
+3. **mediad 二进制**: 本仓不预编译分发, 交叉编译方法见 docs/05 (`runtime/scripts/cross-sysroot.sh` + `cargo build -p mediad --target aarch64-unknown-linux-gnu`)。
 
-A733 侧的硬件编码器 (Radxa 路线用的 mpph264enc 是 RK 专属) 尚未验证; 全志 ve 硬件编码在 vendor 内核里有 bsp 驱动, GStreamer 插件是否存在要板上确认。没有硬件编码器时 webrtcsink 会退到软件 x264, 1GB 内存版可能吃紧。
+**A733 的采集不走 `v4l2src`**, 本仓已给 mediad 加了一条原始采集支路(`pipeline.rs` 的 `raw_bayer_source()`): 三个原因, 都是实测的 ——
 
-**A733 上还有一个前提没打通**: 板子现在**没有装 GStreamer** (`gst-launch-1.0`
-不存在), 所以 mediad 只能装二进制、起不来; 而且 mediad 的采集是
-`v4l2src` (`pipeline.rs` 的 `camera_source()`), `v4l2src` 不会发
-`VIDIOC_S_INPUT` —— 照本页上面那条规则, 它在 A733 上会「格式设上了但拿不到帧」。
-要让摄像头进 WebRTC, 得先按上游装上 GStreamer/webrtcsink 那一套, 再在
-mediad 里补一次 S_INPUT (或在 `v4l2src` 之前用 `v4l2src` 的 device fd 调一次)。
-摄像头不在鸭子走路/站立的关键路径上, 这件事排在镜像之后。
+- `v4l2src` 把 `VIDIOC_ENUM_FMT` 映射成 `GstVideoFormat`, 这张表里没有 Bayer, 所以它面对一个只出 Bayer 的设备直接 `has no supported format`;
+- `v4l2src` 不发 `VIDIOC_S_INPUT`, 而 A733 的 vin 把整条链路的 prepare 放在 S_INPUT 里;
+- 驱动列的 ISP 格式(NV16/422P/RGB3…)能协商、能出帧, 但内容是没调过的原始数据或黑帧(实测 NV16 解出来 luma 均值 36, 图里什么都没有; RGB3 是一片暗紫), 只有 RG10 是真的画面。
 
-安装顺序 (板子在线后):
+所以 mediad 在 `v4l2-ctl --list-formats` 里看到 Bayer fourcc 时, 自己起一条 `v4l2-ctl --set-input=0 --set-fmt-video=...RG10 --stream-mmap --stream-to=-`, 按帧读进 `appsrc`, 后面接 `bayer2rgb ! videoscale ! videoconvert` 变成管线要求的 UYVY。高度按 8 行对齐(1080 → 1088), 由 `videoscale` 裁回去。1080p 软件 debayer 在 A733 八核上实测 32 fps, 720p 默认档位够用。
+
+**必须带 `--no-auto-exposure`**: mediad 的测光环写的是 `exposure` + `analogue_gain`, 而 vendor 驱动的控制叫 `exposure` + `gain`, 整条写会失败。驱动自己的自动曝光是开着的, 让它管亮度即可。
 
 ```
-sudo apt install gstreamer1.0-plugins-bad gstreamer1.0-nice
-# 构建 gst-plugins-rs 的 webrtcsink (见上游 setup-gstreamer.sh)
-sudo /usr/local/bin/mediad --rotate 90
+sudo apt install v4l-utils
+sudo scripts/setup-gstreamer.sh            # GStreamer + webrtcsink
+sudo /usr/local/bin/mediad --no-auto-exposure
 ```
+
+A733 侧的硬件编码器 (Radxa 路线用的 mpph264enc 是 RK 专属) 尚未验证; 没有硬件编码器时 webrtcsink 会退到软件 H.264 (`openh264enc`), 1GB 内存版可能吃紧 —— 所以默认先用 720p 档位。
 
 警告: **没接摄像头时不要 enable mediad 服务** — 它找不到采集设备会反复崩溃重启 (replica 板上烧过主板)。先手动跑通, 再写 service。
 
