@@ -465,7 +465,51 @@ UNIT
     fi
     if [ -x "$src/mediad" ]; then
         install -m 755 "$src/mediad" /usr/local/bin/mediad
-        say "runtime: installed mediad to /usr/local/bin (no service — needs the GStreamer stack, see docs/08)"
+        say "runtime: installed mediad to /usr/local/bin"
+    fi
+    install_camera_service
+}
+
+# ── 6b. 摄像头出流：GStreamer 栈 + mediad 服务 ─────────────────────────────
+# mediad 是 GStreamer 程序，A733 上还要 bayer2rgb（plugins-bad）和 webrtcsink
+# （Debian 任何 suite 都没有，得装 pollen 预编译的那两个 .so）。没有这套栈时
+# mediad 一启动就报 "no webrtcsink" 退出，所以服务装好但先不 enable。
+configure_gstreamer() {
+    if command -v gst-inspect-1.0 >/dev/null 2>&1 \
+        && gst-inspect-1.0 webrtcsink >/dev/null 2>&1 \
+        && gst-inspect-1.0 bayer2rgb >/dev/null 2>&1; then
+        say "camera: GStreamer stack already present (webrtcsink + bayer2rgb)"
+        return 0
+    fi
+    if [ ! -x /usr/local/sbin/robot-setup-gstreamer ]; then
+        warn "camera: no GStreamer stack and no /usr/local/sbin/robot-setup-gstreamer — 把 scripts/setup-gstreamer.sh 拷到板上再跑"
+        return 0
+    fi
+    # 国内网络：Debian 官方源常常几十 MB 就卡住，--mirror 会先把 deb822 源换到清华。
+    if [ -f /etc/apt/sources.list.d/debian.sources ] \
+        && grep -q 'deb.debian.org' /etc/apt/sources.list.d/debian.sources 2>/dev/null; then
+        say "camera: installing the GStreamer stack via the Tsinghua mirror (~120 MB of packages)"
+        /usr/local/sbin/robot-setup-gstreamer --mirror || warn "camera: setup-gstreamer --mirror failed — see docs/08"
+    else
+        say "camera: installing the GStreamer stack from the configured apt sources"
+        /usr/local/sbin/robot-setup-gstreamer || warn "camera: setup-gstreamer failed — see docs/08"
+    fi
+}
+
+# mediad.service：摄像头 → 去马赛克 → UYVY → WebRTC。只在栈齐了以后才 enable，
+# 否则就是一个每 5 秒重启一次的空转单元。
+install_camera_service() {
+    unit_src=/usr/local/share/microduck/mediad-a733.service
+    [ -f "$unit_src" ] || { warn "camera: no $unit_src — 镜像里没装这个 unit"; return 0; }
+    install -m 644 "$unit_src" /etc/systemd/system/mediad.service
+    systemctl daemon-reload 2>/dev/null || true
+    if command -v gst-inspect-1.0 >/dev/null 2>&1 && gst-inspect-1.0 webrtcsink >/dev/null 2>&1; then
+        systemctl is-enabled --quiet mediad.service 2>/dev/null \
+            || systemctl enable mediad.service >/dev/null 2>&1 || true
+        say "camera: mediad.service installed and enabled (console: http://<board>:8080/)"
+    else
+        say "camera: mediad.service installed but NOT enabled — GStreamer stack missing;"
+        say "        install it with 'sudo /usr/local/sbin/robot-setup-gstreamer' then 'systemctl enable --now mediad'"
     fi
 }
 
@@ -546,7 +590,16 @@ report() {
     elif [ ! -f "${OVERLAY_USER_DIR}/${CSI_OVERLAY_NAME}.dtbo" ]; then
         printf '  %-22s %s\n' "camera (CSI)" "/dev/video0 present, but ${CSI_OVERLAY_NAME} overlay missing (rail will power down)"
     else
-        printf '  %-22s %s\n' "camera (CSI)" "/dev/video0 ready — capture needs --set-input=0 (scripts/camera-snapshot.sh)"
+        if systemctl is-active --quiet mediad.service 2>/dev/null; then
+            printf '  %-22s %s\n' "camera (CSI)" "/dev/video0 ready, mediad streaming — console http://<board>:8080/"
+        else
+            printf '  %-22s %s\n' "camera (CSI)" "/dev/video0 ready — capture needs --set-input=0 (scripts/camera-snapshot.sh)"
+        fi
+    fi
+    if command -v gst-inspect-1.0 >/dev/null 2>&1 && gst-inspect-1.0 webrtcsink >/dev/null 2>&1; then
+        printf '  %-22s %s\n' "gstreamer" "stack present (webrtcsink + bayer2rgb)"
+    else
+        printf '  %-22s %s\n' "gstreamer" "missing — 'sudo /usr/local/sbin/robot-setup-gstreamer'"
     fi
 }
 
@@ -563,6 +616,7 @@ configure_policies
 configure_audio
 configure_tof
 configure_bluetooth
+configure_gstreamer
 configure_runtime_binaries
 
 say ""

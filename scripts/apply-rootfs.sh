@@ -95,7 +95,8 @@ REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OVERLAY_DIR="$REPO_DIR/hardware/overlay"
 SETUP_SH="$REPO_DIR/scripts/setup-board-a733.sh"
 
-for f in "$OVERLAY_DIR/uart2-dxl.dtbo" "$OVERLAY_DIR/audio-a733.dtbo" "$OVERLAY_DIR/csi-rail.dtbo" "$SETUP_SH"; do
+for f in "$OVERLAY_DIR/uart2-dxl.dtbo" "$OVERLAY_DIR/audio-a733.dtbo" "$OVERLAY_DIR/csi-rail.dtbo" "$SETUP_SH" \
+	"$REPO_DIR/scripts/setup-gstreamer.sh" "$REPO_DIR/scripts/mediad-a733.service"; do
 	[ -f "$f" ] || die "missing: $f（dtbo 用 dtc -@ 编译 .dts 生成）"
 done
 
@@ -169,6 +170,11 @@ say ">> vin_v4l2 will load at boot (modules-load.d)"
 
 # ── 2. 板侧 bring-up + firstboot 服务 ────────────────────────────────────────
 install -m 0755 "$SETUP_SH" "$MNT/usr/local/sbin/setup-board-a733.sh"
+
+# 摄像头出流要用到的两件：板级 GStreamer 安装脚本，和 mediad 的 unit（由
+# setup-board-a733.sh 拷到 /etc/systemd/system/ 并按栈是否齐了决定 enable）。
+install -m 0755 "$REPO_DIR/scripts/setup-gstreamer.sh" "$MNT/usr/local/sbin/robot-setup-gstreamer"
+install -D -m 0644 "$REPO_DIR/scripts/mediad-a733.service" "$MNT/usr/local/share/microduck/mediad-a733.service"
 
 cat >"$MNT/etc/systemd/system/microduck-firstboot.service" <<'UNIT'
 [Unit]

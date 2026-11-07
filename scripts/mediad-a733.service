@@ -1,0 +1,34 @@
+# MicroDuck 摄像头/WebRTC 守护进程（A733 开发镜像版）
+#
+# 与上游 runtime/mediad/systemd/mediad.service 的区别只有三处，都是为了配合本仓的
+# 开发镜像布局（二进制在 /usr/local/bin，插件装在发行版的 gstreamer 目录）：
+#   * ExecStart 指 /usr/local/bin/mediad（不是 /opt/robot/daemon/current/bin/）
+#   * 以 root 跑：抓帧要 spawn v4l2-ctl 打开 /dev/video0 并自己建 /run/mediad 里的 FIFO，
+#     镜像里其余守护进程也都是 root，不额外造 mediad 用户
+#   * 不带 GST_PLUGIN_PATH：webrtc 那两个 .so 由 scripts/setup-gstreamer.sh 装进
+#     `pkg-config --variable=pluginsdir gstreamer-1.0`（发行版标准目录），本来就在搜索路径里
+#
+# 启动前必须已经有 GStreamer 栈：没有时 mediad 会以 "no webrtcsink" 退出，
+# Restart=on-failure 只是每 5 秒重试一次。装栈的办法：`sudo robot-setup-gstreamer`
+# （由 scripts/setup-gstreamer.sh 安装，见 docs/08-camera-tof.md）。
+
+[Unit]
+Description=MicroDuck media daemon (camera + WebRTC)
+After=network.target robotd.service
+# 不 Wants=robotd：robotd 重启不该把摄像头一起拉起来，mediad 连不上远端时会自己报错重试。
+Documentation=file:///usr/local/share/microduck-ops/docs/08-camera-tof.md
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/mediad --config /etc/robot/robotd.toml
+Restart=on-failure
+RestartSec=5s
+# /run/mediad/media.sock（帧接口）和 capture-<pid>.fifo（v4l2-ctl 抓帧管道）都落在这里。
+RuntimeDirectory=mediad
+RuntimeDirectoryMode=0755
+Environment=RUST_LOG=info
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
