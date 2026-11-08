@@ -79,6 +79,17 @@ imu_to_dxl 1.0.0-500k | STM32G031F8 | FT-SCS ID=200 500000 8N1
 journalctl -u microduck-firstboot -b
 ```
 
+首开落下的 `/etc/robot/robotd.toml` 有两处刻意不同于上游模板 (烘焙时 `scripts/stage-payload-toml.py`
+改写):
+
+- `[bus] protocol = "feetech-sts"` + `[bus.feetech] p_scale = 0.025` — `gain 200 × 0.025 = P 5`, D 写 0。
+  这是 HD-1910 的实测值 (真正的 P/D 在 50/51 号寄存器, 不是 21/22); 上游默认 `0.16` (P 32) 会让鸭子抖到站不住。
+- `[policy] enabled = false` — 新板还没标定, 首开只保持姿态。标定完成后改成 `true`, 再
+  `systemctl restart robotd`。
+
+摄像头默认按需启动: 浏览器开 `http://<板地址>:8080/`, 或 `camera-snap /tmp/s.uyvy` 抓一张
+(720p UYVY, 会先把 mediad 拉起来); 用完 10 秒自动停。
+
 五项验收, 全过再往下:
 
 ```bash
