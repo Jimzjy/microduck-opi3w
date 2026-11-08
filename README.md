@@ -103,7 +103,7 @@ firmware/               git submodule: kissqy/Microduck-kissqy @ eccc2fdb
 | HAT 原理图 | ✅ REV B 已送厂 |
 | 排针重映射 + overlay | ✅ 编译与应用验证通过 |
 | aic3x codec 内核模块 | ✅ 上板原生编译 `snd-aic3x.ko`, vermagic 与 vendor 内核一致 |
-| CSI 摄像头 (IMX219) | ✅ 端到端实测通过: 1920x1080 RG10 抓帧 (单帧 4,177,920 B) + `mediad` 以 720p 经 WebRTC 出流, 浏览器控制台 http://<板>:8080/ 可见实时画面; 自动曝光走私有 ioctl `VIDIOC_VIN_SENSOR_EXP_GAIN`, 开灯房间稳定在均值 ~80 / 23 fps。板级需 `csi-rail` overlay + `vin_v4l2` 自启 + GStreamer/webrtcsink ([docs/08](docs/08-camera-tof.md)) |
+| CSI 摄像头 (IMX219) | ✅ 端到端实测通过: 1920x1080 RG10 抓帧 (单帧 4,177,920 B) + `mediad` 以 720p 经 WebRTC 出流, 浏览器控制台 http://<板>:8080/ 可见实时画面; 自动曝光走私有 ioctl `VIDIOC_VIN_SENSOR_EXP_GAIN`, 开灯房间稳定在均值 ~80 / 23 fps。板级需 `csi-rail` overlay + `vin_v4l2` 自启 + GStreamer/webrtcsink ([docs/08](docs/08-camera-tof.md))。平时 `mediad` 不常开 (它一个人吃满一个核): 8080 由 `camera-launcher` 接管, 打开控制台才拉起 `mediad` (改听 8081), 没人看 10 分钟后自动停 |
 | ToF 测距 (VL53L5CX) | ✅ 上板实测通过: 15 Hz 持续测距, `/run/tofd/tof.sock` 出 8x8 距离阵; I2C 走 udev 别名 `/dev/i2c-pihat`, `tofd` 装好后**默认不 enable** (没插传感器时会重启循环) ([docs/08](docs/08-camera-tof.md)) |
 | 音频 (喇叭 + 麦克风) | ✅ 出声与录音实测通过, mixer 由开机服务持久化 ([docs/06](docs/06-audio-aic3104.md)) |
 | A733 系统镜像 | ✅ 组装流程闭环 (含 1GB bootloader 修复), **真机首启验收通过**: robotd 开机自启, health 正常回话 |

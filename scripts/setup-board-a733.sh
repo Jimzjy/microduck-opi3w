@@ -496,20 +496,37 @@ configure_gstreamer() {
     fi
 }
 
-# mediad.service：摄像头 → 去马赛克 → UYVY → WebRTC。只在栈齐了以后才 enable，
+# mediad.service：摄像头 → 去马赛克 → UYVY → WebRTC。只在栈齐了以后才启用启动器，
 # 否则就是一个每 5 秒重启一次的空转单元。
+# 摄像头按需启动：mediad 听 8081，camera-launcher 听 8080，有人打开控制台才拉 mediad，
+# 空闲 10 分钟再停掉。所以 mediad 本身 disable，enable 的是 camera-launcher。
 install_camera_service() {
     unit_src=/usr/local/share/microduck/mediad-a733.service
+    launcher_src=/usr/local/share/microduck/camera-launcher.py
+    launcher_unit=/usr/local/share/microduck/camera-launcher.service
     [ -f "$unit_src" ] || { warn "camera: no $unit_src — 镜像里没装这个 unit"; return 0; }
     install -m 644 "$unit_src" /etc/systemd/system/mediad.service
+    if [ -f "$launcher_src" ] && [ -f "$launcher_unit" ]; then
+        install -m 755 "$launcher_src" /usr/local/bin/camera-launcher.py
+        install -m 644 "$launcher_unit" /etc/systemd/system/camera-launcher.service
+    else
+        warn "camera: no camera-launcher files — 摄像头会一直常开（旧行为）"
+    fi
     systemctl daemon-reload 2>/dev/null || true
     if command -v gst-inspect-1.0 >/dev/null 2>&1 && gst-inspect-1.0 webrtcsink >/dev/null 2>&1; then
-        systemctl is-enabled --quiet mediad.service 2>/dev/null \
-            || systemctl enable mediad.service >/dev/null 2>&1 || true
-        say "camera: mediad.service installed and enabled (console: http://<board>:8080/)"
+        if [ -f "$launcher_src" ]; then
+            systemctl disable mediad.service >/dev/null 2>&1 || true
+            systemctl enable camera-launcher.service >/dev/null 2>&1 || true
+            systemctl restart camera-launcher.service >/dev/null 2>&1 || true
+            say "camera: on-demand launcher enabled (console: http://<board>:8080/, mediad starts on first visit)"
+        else
+            systemctl is-enabled --quiet mediad.service 2>/dev/null \
+                || systemctl enable mediad.service >/dev/null 2>&1 || true
+            say "camera: mediad.service installed and enabled (console: http://<board>:8080/)"
+        fi
     else
-        say "camera: mediad.service installed but NOT enabled — GStreamer stack missing;"
-        say "        install it with 'sudo /usr/local/sbin/robot-setup-gstreamer' then 'systemctl enable --now mediad'"
+        say "camera: camera units installed but NOT enabled — GStreamer stack missing;"
+        say "        install it with 'sudo /usr/local/sbin/robot-setup-gstreamer' then 'systemctl enable --now camera-launcher'"
     fi
 }
 
@@ -592,6 +609,8 @@ report() {
     else
         if systemctl is-active --quiet mediad.service 2>/dev/null; then
             printf '  %-22s %s\n' "camera (CSI)" "/dev/video0 ready, mediad streaming — console http://<board>:8080/"
+        elif systemctl is-active --quiet camera-launcher.service 2>/dev/null; then
+            printf '  %-22s %s\n' "camera (CSI)" "/dev/video0 ready, on-demand — open http://<board>:8080/ (mediad idle)"
         else
             printf '  %-22s %s\n' "camera (CSI)" "/dev/video0 ready — capture needs --set-input=0 (scripts/camera-snapshot.sh)"
         fi
