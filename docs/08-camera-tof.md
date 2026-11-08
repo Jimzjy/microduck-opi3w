@@ -115,9 +115,11 @@ sudo scripts/setup-gstreamer.sh            # GStreamer + webrtcsink
 
 ### 按需启动 (默认就是这样)
 
-`mediad` 只解码 + WebRTC 就要占满一个核 (实测 61%), 平时没有理由让它常开。所以
-**`mediad` 本身 `disable`, 开机不启动**, 由 `camera-launcher` 在真的有人打开控制台
-或连信令时拉起。启动器常驻两个"盖子", 都落在 `mediad` 用不到的地方:
+`mediad` 只解码 + WebRTC 就要占满一个核 (实测 61%), 平时没有理由让它常开。我们的用法
+也不是长时间看画面, 而是**偶尔拍一张照片做识别**, 所以默认口径是: 谁都不用就关掉,
+空闲 **10 秒**就停。**`mediad` 本身 `disable`, 开机不启动**, 由 `camera-launcher` 在
+真的有人打开控制台、连信令或取一帧时拉起。启动器常驻两个"盖子", 都落在 `mediad` 用
+不到的地方:
 
 ```
 浏览器 ──:8080──→ camera-launcher ──(转发)──→ 127.0.0.1:8081  mediad 控制台页
@@ -137,17 +139,25 @@ sudo scripts/setup-gstreamer.sh            # GStreamer + webrtcsink
 - 启动器在启动时取一次主 IPv4 (UDP connect 到 `192.0.2.1:9`, 不发包), 绑到这个地址;
   accept 超时时对比地址, 变了就关掉重绑, 所以 DHCP 换 IP 后不用重启服务。
 - 空闲判定看**活跃转发连接数**: 控制台那条转发很短, 信令那条等于浏览器的 WebSocket
-  会话, 也就是"有人在看"。两条都没有、且静默满 10 分钟 (`CAMERA_IDLE_SECONDS`) 就
-  `systemctl stop mediad`, CPU 回到 0。别再用 `/proc/net/tcp` 数 8443: `mediad`
-  自己会和自己建一条 loopback 连接, 很容易被误判成观众。
-- 想临时抓帧/用 `robotctl frame` 时, 手动 `systemctl start mediad` 即可 (同样会在
-  空闲 10 分钟后被停):
+  会话, 也就是"有人在看"。两条都没有、且静默满 10 秒 (`CAMERA_IDLE_SECONDS`, 单位秒)
+  就 `systemctl stop mediad`, CPU 回到 0。计时的起点取"最后一次转发活动"和"mediad
+  起来"里较晚的那个, 所以最短存活 (`CAMERA_MIN_UPTIME_SECONDS`, 默认 8 秒) 不会和
+  空闲窗口叠加。别再用 `/proc/net/tcp` 数 8443: `mediad` 自己会和自己建一条 loopback
+  连接, 很容易被误判成观众。
+- **拍一张就走**用 `camera-snap`: 它在 mediad 停着时先把它拉起来, 等到 `media.sock`
+  可用, 取一帧原始 UYVY, 然后就交给 10 秒空闲规则关掉。想自己调 `robotctl frame`
+  也可以, 但要先 `systemctl start mediad` (同样会在空闲 10 秒后被停):
 
 ```
-systemctl start mediad        # robotctl frame 需要它
+camera-snap /tmp/snap.uyvy     # 起 mediad → 取一帧 → 10 秒后自动停
+systemctl start mediad         # 或手动: robotctl frame 需要它
 systemctl status camera-launcher
 journalctl -u camera-launcher -f
 ```
+
+注意别和 `scripts/camera-snapshot.sh` 混了: 那个是绕过 mediad 直接用 v4l2 抓原始 RG10
+Bayer (验证驱动/曝光用, 抓的时候 mediad 不能开着); `camera-snap` 走 mediad 的
+`media.sock`, 拿的是已经去马赛克、自动曝光过的 720p UYVY, 适合拍一张给识别用。
 
 安装方法见 `scripts/setup-board-a733.sh`; 手工部署就是三件事: 把
 `scripts/camera-launcher.py` 放进 `/usr/local/bin/`, 装 `camera-launcher.service`,

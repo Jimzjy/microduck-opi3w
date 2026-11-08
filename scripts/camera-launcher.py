@@ -29,8 +29,8 @@ import time
 LISTEN_PORT = int(os.environ.get("CAMERA_LISTEN_PORT", "8080"))
 MEDIAD_WEB_PORT = int(os.environ.get("CAMERA_MEDIAD_WEB_PORT", "8081"))
 SIGNAL_PORT = int(os.environ.get("CAMERA_SIGNAL_PORT", "8443"))
-IDLE_SECONDS = int(os.environ.get("CAMERA_IDLE_SECONDS", "600"))
-MIN_UPTIME_SECONDS = 45
+IDLE_SECONDS = int(os.environ.get("CAMERA_IDLE_SECONDS", "10"))
+MIN_UPTIME_SECONDS = int(os.environ.get("CAMERA_MIN_UPTIME_SECONDS", "8"))
 
 lock = threading.Lock()
 start_lock = threading.Lock()
@@ -226,27 +226,36 @@ def signal_loop():
 
 
 def stopper():
-    idle_since = None
+    """Stop mediad as soon as nobody has used it for IDLE_SECONDS.
+
+    The clock starts at the later of "last relay activity" and "mediad came up", so the
+    minimum-uptime guard and the idle window do not add up: a snapshot run keeps mediad
+    for at most MIN_UPTIME, and a viewing session for as long as its WebSocket lives.
+    """
+    stopping = False
+    up_since = None
     while True:
-        time.sleep(10)
+        time.sleep(2)
+        running = mediad_active()
+        now = time.time()
+        if not running:
+            up_since = None
+            stopping = False
+            continue
+        if up_since is None:
+            # mediad may also be started by hand (robotctl frame, a snapshot helper); the
+            # idle clock must start then, not at the epoch.
+            up_since = now
         with lock:
             open_relays = active
-            quiet_for = time.time() - last_activity
-        if open_relays or not mediad_active():
-            idle_since = None
+            quiet_from = max(last_activity, up_since)
+        if open_relays or now - quiet_from < max(IDLE_SECONDS, MIN_UPTIME_SECONDS):
             continue
-        if mediad_started_at and time.time() - mediad_started_at < MIN_UPTIME_SECONDS:
-            idle_since = None
+        if stopping:
             continue
-        if quiet_for < MIN_UPTIME_SECONDS:
-            idle_since = None
-            continue
-        if idle_since is None:
-            idle_since = time.time()
-        elif time.time() - idle_since >= IDLE_SECONDS:
-            log(f"nobody has watched for {IDLE_SECONDS}s, stopping mediad")
-            systemctl("stop", "mediad")
-            idle_since = None
+        stopping = True
+        log(f"idle for {IDLE_SECONDS}s, stopping mediad")
+        systemctl("stop", "mediad")
 
 
 def main():

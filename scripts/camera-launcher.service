@@ -1,10 +1,10 @@
 [Unit]
-Description=MicroDuck camera launcher (starts mediad only when the console is opened)
+Description=MicroDuck camera launcher (starts mediad only when it is used)
 After=network.target
 
 [Service]
 Type=exec
-Environment=CAMERA_IDLE_SECONDS=600
+Environment=CAMERA_IDLE_SECONDS=10
 ExecStart=/usr/bin/python3 /usr/local/bin/camera-launcher.py
 Restart=always
 RestartSec=3

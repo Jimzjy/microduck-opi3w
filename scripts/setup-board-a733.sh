@@ -499,12 +499,13 @@ configure_gstreamer() {
 # mediad.service：摄像头 → 去马赛克 → UYVY → WebRTC。只在栈齐了以后才启用启动器，
 # 否则就是一个每 5 秒重启一次的空转单元。
 # 摄像头按需启动：mediad 只绑 loopback（控制台 8081、信令 8443），camera-launcher 常驻
-# 8080 与局域网 IP 的 8443 两个盖子，有人打开控制台或连信令才拉 mediad，空闲 10 分钟再
+# 8080 与局域网 IP 的 8443 两个盖子，有人打开控制台或连信令才拉 mediad，空闲 10 秒再
 # 停掉。所以 mediad 本身 disable，enable 的是 camera-launcher。
 install_camera_service() {
     unit_src=/usr/local/share/microduck/mediad-a733.service
     launcher_src=/usr/local/share/microduck/camera-launcher.py
     launcher_unit=/usr/local/share/microduck/camera-launcher.service
+    snap_src=/usr/local/share/microduck/camera-snap.sh
     [ -f "$unit_src" ] || { warn "camera: no $unit_src — 镜像里没装这个 unit"; return 0; }
     install -m 644 "$unit_src" /etc/systemd/system/mediad.service
     if [ -f "$launcher_src" ] && [ -f "$launcher_unit" ]; then
@@ -512,6 +513,9 @@ install_camera_service() {
         install -m 644 "$launcher_unit" /etc/systemd/system/camera-launcher.service
     else
         warn "camera: no camera-launcher files — 摄像头会一直常开（旧行为）"
+    fi
+    if [ -f "$snap_src" ]; then
+        install -m 755 "$snap_src" /usr/local/bin/camera-snap
     fi
     systemctl daemon-reload 2>/dev/null || true
     if command -v gst-inspect-1.0 >/dev/null 2>&1 && gst-inspect-1.0 webrtcsink >/dev/null 2>&1; then
