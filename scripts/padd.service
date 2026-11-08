@@ -1,0 +1,65 @@
+# padd — the gamepad, as an intent client.
+#
+# A733 移植版：只改了两处路径假设。
+#   * ExecStart / ExecCondition 指 /usr/local/bin/padd（我们的布局，不是 /opt/robot/daemon/current）
+#   * Documentation 去掉（本仓没有那份文档树）
+# 其余与 runtime/padd/systemd/padd.service 逐字一致。
+
+[Unit]
+Description=Robot gamepad intent client
+
+# After, not Requires: robotd 是 intent 的去处，早于它启动没意义；robotd 不在时 padd 会退出，
+# systemd 五秒后重试，这就是慢开机时追上来的方式。
+After=robotd.service local-fs.target
+
+# 手柄从蓝牙来。hci0 在开机后几十秒才出现，所以只靠 After=bluetooth.service 不够，
+# padd 自己会一直轮询，无线电什么时候出现都行。
+After=bluetooth.service
+
+[Service]
+Type=exec
+# 当 [netpad] enabled 把手柄让给 netpadd 时让位。
+# 本板 netpadd 不在 /opt/robot/daemon/current，所以这条恒为「跑」。
+ExecCondition=/bin/sh -c '[ ! -x /opt/robot/daemon/current/bin/netpadd ] || exec /usr/local/bin/padd --should-run'
+ExecStart=/usr/local/bin/padd
+
+# 非特权。权限只来自两个组：
+#   input — /dev/input/event*（root:input 0660），没有它 padd 看不到手柄
+#   robot — robotd 的 0660 socket
+User=padd
+Group=padd
+SupplementaryGroups=input robot
+
+Restart=always
+RestartSec=5s
+
+# 硬化，能到哪算哪。
+# 不设 PrivateDevices=yes：那会藏掉 /dev/input，而这个进程就是为读它存在的。
+# AF_NETLINK 是关键：gilrs 通过 libudev 枚举并监听设备，libudev 是 netlink socket；
+# 少了它，开机后才连接的手柄永远发现不了。
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+
+Environment=RUST_LOG=info
+StandardOutput=journal
+StandardError=journal
+
+# /run/padd/：identity.json 与 pad.sock（原始输入 tap）。RuntimeDirectory 是唯一既创建目录、
+# 属主为该 unit 的 User=、又能活过 ProtectSystem=strict 的机制。
+RuntimeDirectory=padd
+
+[Install]
+WantedBy=multi-user.target

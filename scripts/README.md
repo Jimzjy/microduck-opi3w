@@ -20,6 +20,10 @@
 | `build-runtime.sh` | 交叉编译运行时 `robotd`/`robotctl` (aarch64, 源 = `microduck-runtime` 仓 `opi3w-feetech` 分支 = 官方 0.17.9 + 我们的补丁)并布进 `$MICRODUCK_IMG/payload/runtime-bin/` (默认仓库同级的 `img/`)。先跑受影响 crate 测试再出产物, `SKIP_TEST=1` 可跳。产物 GLIBC 符号最高要求 2.39 (底图 trixie 的 2.41 满足); onnxruntime 静态链入板上无需装库。**二进制不进 git** |
 | `smoke-fake.sh` | 全链路台架冒烟测试 (host x86_64, 无需真机): robotd `--fake` + onnxruntime + 测试 fixture 策略, 用 robotctl 验 health/init/mode/monitor/quack fail-soft。前置: host 编译 robotd/robotctl + onnxruntime x64 ≥1.23 解到 `$ORT_DIR` (默认 /root/ort-x64)。详见脚本头注释 |
 | `smoke-commissioning.sh` | 标定台架冒烟: `robotd --fake --commissioning` 起来, 策略被关掉, 控制环在跑, `health` 回话。前置只需 host 编译 robotd/robotctl (debug) |
+| `build-padd.sh` | 交叉编译手柄守护进程 `padd` (gilrs → libudev, 需 `cross-sysroot.sh` 生成的 sysroot)。产物 `runtime/target/aarch64-unknown-linux-gnu/release/padd` |
+| `deploy-padd.sh` | 把 `padd` 装到板上: 建 padd 用户、装 unit、`robotd.service` 加 `Group=robot`、`[netpad] enabled=false`, enable + restart。幂等 |
+| `padd.service` | `padd` 的 systemd unit (移植版: 路径指 `/usr/local/bin/padd`, 其余与上游逐字一致) |
+| `pair-gamepad.sh` | 板上配蓝牙手柄: 单个 bluetoothctl 会话里 scan → pair → trust → connect (BR/EDR 顺序), 并打印 bond 文件与 `/dev/input` 结果。用法见 [../docs/09-gamepad.md](../docs/09-gamepad.md) |
 
 ## overlay 编译与验证 (任意主机, 需要 dtc)
 
