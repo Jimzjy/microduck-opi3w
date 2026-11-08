@@ -126,7 +126,19 @@ Studio 手柄页有一张急停验收卡（`microduck-replica/software/studio/we
 `out.push(Out::Request(proto::Call::RobotRelax))` —— `robotd` 的 `RobotRelax` 是"永不拒绝、
 立刻卸力"（`robotd/src/main.rs:6496-6501`），重编 padd 约 40 秒。
 
-## 8. 排错
+## 8. 实机驱动 (2026-11-08 实测)
+
+Xbox One S 无线手柄连上 (`/dev/input/event2`, 日志 `Gamepad ... connected.`), `padd` 自 19:00 起在跑,
+按住 Start 让鸭子站起并切到 walk 策略后, 左摇杆推 `vx` 0.2 左右能正常走, 松杆即停 (deadman); A 坐/站、
+扳机张嘴、Select 按住 2 s 卸力都按第 6 节的映射响应。
+
+- 建议先把鸭子放到**地上**: 摇杆满量程 `vx = 0.4 m/s`, 桌面上会直接冲出去。
+- `robotctl pad status` 依赖 `configd` (读 `/run/configd.sock`), 没装 `configd` 时它会报
+  `connect to /run/configd.sock`; 直接 `journalctl -u padd -n 30` 看连接与按键日志即可。
+- `padd` 启动时可能打印 `ignored=control.velocity_source, policy.max_target_speed` —— 它自己的配置
+  schema 不认这两个运行时键, 无害, 不影响 `robotd` 读到它们。
+
+## 9. 排错
 
 | 现象 | 原因 / 处理 |
 | --- | --- |

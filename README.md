@@ -74,9 +74,10 @@ docs/
   07-imu-firmware.md    IMU 板与固件: 为什么自己维护, 三端波特率档位, 供电与排障
   08-camera-tof.md      摄像头与 ToF: CSI 抓帧要 S_INPUT, csi-rail overlay, mediad/tofd 依赖与启用
   09-gamepad.md         蓝牙手柄: 编/装 padd, 配对顺序 (BR/EDR vs LE), 键位, 与 Studio 急停验收的口径差异
+  10-walking.md         站立与行走: HD-1910 真增益寄存器 50/51, 速度单位, 最终参数, 试过没用的实验
 runtime/               运行时源码 submodule (Jimzjy/microduck-runtime, 分支 opi3w-feetech), clone 时加 --recurse-submodules
 patches/
-  runtime-opi3w-feetech.patch   运行时差分快照 (基线 daemon-v0.17.9 -> 3c74775; 最新代码看 runtime/ submodule)
+  runtime-opi3w-feetech.patch   运行时差分快照 (基线 daemon-v0.17.9 -> 4d375ba, 树哈希已对账; 最新代码看 runtime/ submodule)
   README.md                     基线与结果树哈希, apply 步骤, 内容清单
 hardware/
   eda/                  EasyEDA Pro 工程: HAT REV B + IMU v2 (取自 replica, 已快照进本仓); HUB/POGO 板用 replica 仓的工程
@@ -106,8 +107,8 @@ firmware/               git submodule: kissqy/Microduck-kissqy @ eccc2fdb
 | ToF 测距 (VL53L5CX) | ✅ 上板实测通过: 15 Hz 持续测距, `/run/tofd/tof.sock` 出 8x8 距离阵; I2C 走 udev 别名 `/dev/i2c-pihat`, `tofd` 装好后**默认不 enable** (没插传感器时会重启循环) ([docs/08](docs/08-camera-tof.md)) |
 | 音频 (喇叭 + 麦克风) | ✅ 出声与录音实测通过, mixer 由开机服务持久化 ([docs/06](docs/06-audio-aic3104.md)) |
 | A733 系统镜像 | ✅ 组装流程闭环 (含 1GB bootloader 修复), **真机首启验收通过**: robotd 开机自启, health 正常回话 |
-| 站立与行走 | ✅ 实测: `robot init` 后躯干倾角 2.4–3.6°, 策略接管后 `scripts/pad-walk.py` 前进实测 19 cm |
-| 蓝牙手柄 (padd) | ✅ 上板实测通过: Xbox One S (BR/EDR, `EC:83:50:7C:B5:EC`) `Bonded/Trusted/Connected` 全 yes, `/dev/input/js0` 出现, `padd` 读键并把 Start/A/B/摇杆转给 `robotd`。按官方映射 Select 短按无动作、按住 2 s 才 `robot.rest`, 所以鸭子身上**没有一键急停** (用网页卸力) ([docs/09](docs/09-gamepad.md)) |
+| 站立与行走 | ✅ 实测: 零命令站立 14.6 s 无看门狗 (陀螺仪 rms 0.02 rad/s、电流纹波 267 mA); `vx=0.2` 直走 10 s 走 0.735 m, 左右膝交替真步态。关键是把 HD-1910 真增益寄存器 50/51 写成 P=5/D=0、速度单位 50、速度延后一拍; 走路别设 `max_target_speed` ([docs/10](docs/10-walking.md)) |
+| 蓝牙手柄 (padd) | ✅ 上板实测通过: Xbox One S (BR/EDR, `EC:83:50:7C:B5:EC`) `Bonded/Trusted/Connected` 全 yes, `/dev/input/js0` 出现, `padd` 读键并把 Start/A/B/摇杆转给 `robotd`。按官方映射 Select 短按无动作、按住 2 s 才 `robot.rest`, 所以鸭子身上**没有一键急停** (用网页卸力); 左摇杆已在实机上驱动站立/行走 ([docs/09](docs/09-gamepad.md)) |
 
 ## 许可
 
