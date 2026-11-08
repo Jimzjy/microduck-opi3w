@@ -8,7 +8,10 @@
 #   * 不带 GST_PLUGIN_PATH：webrtc 那两个 .so 由 scripts/setup-gstreamer.sh 装进
 #     `pkg-config --variable=pluginsdir gstreamer-1.0`（发行版标准目录），本来就在搜索路径里
 #   * 控制台让出 8080，改听 8081：8080 归 camera-launcher（按需启动器），它把请求转发到
-#     8081。没人看的时候 mediad 会被启动器停掉，所以这个服务本身不 enable。
+#     8081。信令端口 8443 也只绑 127.0.0.1 —— 局域网侧的 8443 由启动器占着，浏览器连
+#     ws://<板子IP>:8443 时先把它叫醒，再转发到这里的 loopback。这样即使控制台标签页
+#     是十分钟前打开的（mediad 已被空闲停掉），点「连接」也能把 mediad 拉起来。
+#     没人看的时候 mediad 会被启动器停掉，所以这个服务本身不 enable。
 #
 # 启动前必须已经有 GStreamer 栈：没有时 mediad 会以 "no webrtcsink" 退出，
 # Restart=on-failure 只是每 5 秒重试一次。装栈的办法：`sudo robot-setup-gstreamer`
@@ -22,7 +25,7 @@ Documentation=file:///usr/local/share/microduck-ops/docs/08-camera-tof.md
 
 [Service]
 Type=exec
-ExecStart=/usr/local/bin/mediad --config /etc/robot/robotd.toml --web-port 8081
+ExecStart=/usr/local/bin/mediad --config /etc/robot/robotd.toml --host 127.0.0.1 --web-port 8081
 Restart=on-failure
 RestartSec=5s
 # /run/mediad/media.sock（帧接口）和 capture-<pid>.fifo（v4l2-ctl 抓帧管道）都落在这里。

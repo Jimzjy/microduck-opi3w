@@ -498,8 +498,9 @@ configure_gstreamer() {
 
 # mediad.service：摄像头 → 去马赛克 → UYVY → WebRTC。只在栈齐了以后才启用启动器，
 # 否则就是一个每 5 秒重启一次的空转单元。
-# 摄像头按需启动：mediad 听 8081，camera-launcher 听 8080，有人打开控制台才拉 mediad，
-# 空闲 10 分钟再停掉。所以 mediad 本身 disable，enable 的是 camera-launcher。
+# 摄像头按需启动：mediad 只绑 loopback（控制台 8081、信令 8443），camera-launcher 常驻
+# 8080 与局域网 IP 的 8443 两个盖子，有人打开控制台或连信令才拉 mediad，空闲 10 分钟再
+# 停掉。所以 mediad 本身 disable，enable 的是 camera-launcher。
 install_camera_service() {
     unit_src=/usr/local/share/microduck/mediad-a733.service
     launcher_src=/usr/local/share/microduck/camera-launcher.py

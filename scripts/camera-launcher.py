@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
-"""On-demand camera: keep mediad stopped until someone opens the console.
+"""On-demand camera: keep mediad stopped until somebody actually opens the console or
+connects to its signalling port.
 
-mediad serves the console itself, so a stopped mediad means nothing listens on the console's
-port and the URL cannot be opened. This sits in front of it on 8080, starts mediad when the
-first request arrives (mediad listens on 8081 instead), relays the TCP stream, and stops
-mediad again once nobody has watched for CAMERA_IDLE_SECONDS.
+Two lids, both on ports that are always up:
 
-The "is anyone watching" test cannot be "is a relay open": the browser loads the page over
-8081 and then closes those connections, while the video keeps flowing over the WebRTC
-signalling connection on 8443. So idle means no relay open AND no established TCP connection
-to 8443, read from /proc/net/tcp{,6}.
+  8080  console   → relay to mediad's 8081 (mediad serves the page there)
+  8443  signalling → relay to mediad's 8443, but mediad is bound to 127.0.0.1 only, so
+                     the LAN address on 8443 belongs to this process instead
+
+The second one is what makes a stale tab work: the console's script opens
+`ws://<hostname>:8443` the moment it has parsed, so if mediad has been idle-stopped the
+WebSocket connects to *us*, we start mediad, and only then forward. Without it the page
+sits there with a dead "cannot reach signalling port 8443" until it is reloaded.
+
+The page's own signalling port comes from mediad (it substitutes its --port into the HTML),
+so mediad must keep --port 8443 while binding loopback; nothing else is rewritten.
+
+Idle means: no console relay and no signalling relay for CAMERA_IDLE_SECONDS. The relay
+lifetime equals the browser's WebSocket session, which is exactly "somebody is watching".
 """
 
 import os
@@ -22,8 +30,6 @@ LISTEN_PORT = int(os.environ.get("CAMERA_LISTEN_PORT", "8080"))
 MEDIAD_WEB_PORT = int(os.environ.get("CAMERA_MEDIAD_WEB_PORT", "8081"))
 SIGNAL_PORT = int(os.environ.get("CAMERA_SIGNAL_PORT", "8443"))
 IDLE_SECONDS = int(os.environ.get("CAMERA_IDLE_SECONDS", "600"))
-# Do not stop a mediad that has only just started: the page may still be loading, and the
-# WebRTC connection that proves someone is watching does not exist for the first second.
 MIN_UPTIME_SECONDS = 45
 
 lock = threading.Lock()
@@ -31,6 +37,8 @@ start_lock = threading.Lock()
 active = 0
 last_activity = time.time()
 mediad_started_at = 0.0
+signal_sock = None
+signal_host = None
 
 
 def log(msg):
@@ -49,7 +57,7 @@ def tcp_open(port, host="127.0.0.1", timeout=0.3):
 def systemctl(*args):
     try:
         subprocess.run(["systemctl", *args], check=False, timeout=40)
-    except Exception as exc:  # systemd missing, timeout, ...
+    except Exception as exc:
         log(f"systemctl {' '.join(args)} failed: {exc}")
 
 
@@ -64,22 +72,20 @@ def mediad_active():
 
 
 def mediad_ready():
-    """Both listeners must be up: the page itself needs 8081, but its script opens the
-    signalling WebSocket as soon as it has parsed, which is earlier than 8443 appears
-    (~150 ms vs ~280 ms after start on this board). Serving the page one tick too early is
-    exactly the "cannot reach signalling port 8443" the console shows."""
+    """The page needs 8081; its script needs 8443 as soon as it has parsed, and that port
+    comes up a little later. Serving the page in between is the "cannot reach signalling
+    port 8443" the console reports."""
     return tcp_open(MEDIAD_WEB_PORT) and tcp_open(SIGNAL_PORT)
 
 
 def ensure_mediad():
-    """Start mediad if it is not serving, and wait until both of its ports answer."""
     global mediad_started_at
     if mediad_ready():
         return True
     with start_lock:
         if mediad_ready():
             return True
-        log("console requested, starting mediad")
+        log("wake requested, starting mediad")
         systemctl("start", "mediad")
         mediad_started_at = time.time()
         deadline = time.time() + 30
@@ -92,38 +98,45 @@ def ensure_mediad():
     return False
 
 
-def viewer_connected():
-    """True if a remote peer holds an established connection to the WebRTC signalling port.
+def lan_ip():
+    """Primary IPv4 of the interface that reaches the outside; no packet is sent."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("192.0.2.1", 9))
+        ip = s.getsockname()[0]
+    except OSError:
+        return None
+    finally:
+        s.close()
+    return None if ip.startswith("127.") else ip
 
-    mediad keeps a loopback connection to its own 8443 open (fd pair 127.0.0.1 <-> 127.0.0.1),
-    so loopback peers must not count as viewers or mediad would never go idle.
-    """
-    loopback = {
-        "0100007F",  # 127.0.0.1
-        "00000000000000000000000001000000",  # ::1
-    }
-    for path in ("/proc/net/tcp", "/proc/net/tcp6"):
-        try:
-            with open(path) as fh:
-                lines = fh.read().splitlines()[1:]
-        except OSError:
-            continue
-        for line in lines:
-            fields = line.split()
-            if len(fields) < 4 or fields[3] != "01":  # 01 = ESTABLISHED
-                continue
+
+def listen(host, port):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind((host, port))
+    s.listen(32)
+    s.settimeout(5)
+    return s
+
+
+def bind_signalling():
+    """Bind 8443 on the LAN address; retried until an address exists."""
+    global signal_sock, signal_host
+    while True:
+        ip = lan_ip()
+        if ip:
             try:
-                local_port = int(fields[1].rsplit(":", 1)[1], 16)
-                peer = fields[2].rsplit(":", 1)[0]
-            except (IndexError, ValueError):
-                continue
-            if local_port == SIGNAL_PORT and peer not in loopback:
-                return True
-    return False
+                signal_sock = listen(ip, SIGNAL_PORT)
+                signal_host = ip
+                log(f"signalling lid on {ip}:{SIGNAL_PORT} -> mediad 127.0.0.1:{SIGNAL_PORT}")
+                return
+            except OSError as exc:
+                log(f"cannot bind {ip}:{SIGNAL_PORT}: {exc}")
+        time.sleep(5)
 
 
 def pipe(src, dst):
-    """Copy one direction, half-closing dst on EOF so the other side sees the end too."""
     global last_activity
     try:
         while True:
@@ -142,7 +155,7 @@ def pipe(src, dst):
             pass
 
 
-def handle(conn, peer):
+def relay(conn, peer, upstream_port, tag):
     global active, last_activity
     with lock:
         active += 1
@@ -152,10 +165,12 @@ def handle(conn, peer):
         if not ensure_mediad():
             return
         try:
-            upstream = socket.create_connection(("127.0.0.1", MEDIAD_WEB_PORT), timeout=10)
+            upstream = socket.create_connection(("127.0.0.1", upstream_port), timeout=10)
+            upstream.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         except OSError as exc:
-            log(f"cannot reach mediad for {peer}: {exc}")
+            log(f"{tag}: cannot reach mediad for {peer}: {exc}")
             return
+        conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         t1 = threading.Thread(target=pipe, args=(conn, upstream), daemon=True)
         t2 = threading.Thread(target=pipe, args=(upstream, conn), daemon=True)
         t1.start()
@@ -175,20 +190,54 @@ def handle(conn, peer):
                 pass
 
 
+def accept_loop(sock, upstream_port, tag):
+    while True:
+        try:
+            conn, peer = sock.accept()
+        except socket.timeout:
+            continue
+        except OSError:
+            time.sleep(1)
+            continue
+        threading.Thread(target=relay, args=(conn, peer, upstream_port, tag), daemon=True).start()
+
+
+def signal_loop():
+    """Accept signalling connections and rebind if the LAN address changes."""
+    global signal_sock, signal_host
+    while True:
+        try:
+            conn, peer = signal_sock.accept()
+        except socket.timeout:
+            if lan_ip() != signal_host:
+                log(f"LAN address changed (was {signal_host}), rebinding signalling lid")
+                try:
+                    signal_sock.close()
+                except OSError:
+                    pass
+                bind_signalling()
+            continue
+        except OSError:
+            time.sleep(1)
+            continue
+        threading.Thread(
+            target=relay, args=(conn, peer, SIGNAL_PORT, "signalling"), daemon=True
+        ).start()
+
+
 def stopper():
     idle_since = None
     while True:
         time.sleep(10)
         with lock:
             open_relays = active
-        if open_relays or viewer_connected() or not mediad_active():
+            quiet_for = time.time() - last_activity
+        if open_relays or not mediad_active():
             idle_since = None
             continue
         if mediad_started_at and time.time() - mediad_started_at < MIN_UPTIME_SECONDS:
             idle_since = None
             continue
-        with lock:
-            quiet_for = time.time() - last_activity
         if quiet_for < MIN_UPTIME_SECONDS:
             idle_since = None
             continue
@@ -202,14 +251,11 @@ def stopper():
 
 def main():
     threading.Thread(target=stopper, daemon=True).start()
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind(("0.0.0.0", LISTEN_PORT))
-    server.listen(32)
-    log(f"camera launcher on :{LISTEN_PORT} -> mediad :{MEDIAD_WEB_PORT}, idle stop {IDLE_SECONDS}s")
-    while True:
-        conn, peer = server.accept()
-        threading.Thread(target=handle, args=(conn, peer), daemon=True).start()
+    console = listen("0.0.0.0", LISTEN_PORT)
+    log(f"console lid on :{LISTEN_PORT} -> mediad :{MEDIAD_WEB_PORT}, idle stop {IDLE_SECONDS}s")
+    threading.Thread(target=accept_loop, args=(console, MEDIAD_WEB_PORT, "console"), daemon=True).start()
+    bind_signalling()
+    signal_loop()
 
 
 if __name__ == "__main__":

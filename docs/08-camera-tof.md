@@ -116,20 +116,30 @@ sudo scripts/setup-gstreamer.sh            # GStreamer + webrtcsink
 ### 按需启动 (默认就是这样)
 
 `mediad` 只解码 + WebRTC 就要占满一个核 (实测 61%), 平时没有理由让它常开。所以
-**`mediad` 本身 `disable`, 开机不启动**, 由 `camera-launcher` 在有人打开控制台时拉起:
+**`mediad` 本身 `disable`, 开机不启动**, 由 `camera-launcher` 在真的有人打开控制台
+或连信令时拉起。启动器常驻两个"盖子", 都落在 `mediad` 用不到的地方:
 
 ```
-浏览器 → :8080 camera-launcher ──(TCP 转发)──→ :8081 mediad 控制台
-                                        mediad 另听 :8443 做 WebRTC 信令
+浏览器 ──:8080──→ camera-launcher ──(转发)──→ 127.0.0.1:8081  mediad 控制台页
+浏览器 ──:8443──→ camera-launcher ──(转发)──→ 127.0.0.1:8443  mediad WebRTC 信令
+        (板子局域网 IP)                        (mediad 只绑 loopback)
 ```
 
-- 打开 `http://<板子IP>:8080/` 时启动器先 `systemctl start mediad`, 等 8081 可连
-  再把请求转过去, 页面和视频体验不变 (视频仍然直连 8443, 不经过转发)。
-- 没有任何人看时 (没有转发连接、也没有外部到 8443 的 ESTABLISHED 连接) 静默
-  10 分钟就 `systemctl stop mediad`, CPU 回到 0。
-- **判断「有人在看」必须看 8443, 不能看 8080**: 浏览器把页面资源取完就关掉 8081
-  的连接, 之后视频才走 8443。另外 `mediad` 自己会和自己的 8443 建一条 loopback
-  连接, 统计时要排掉 `127.0.0.1` 的对端, 否则永远不空闲。
+- 打开 `http://<板子IP>:8080/` 时启动器先 `systemctl start mediad`, 等 **8081 和
+  8443 都可连**再把请求转过去。实测 8081 约 150 ms 起来、8443 约 277 ms 才起来,
+  只等 8081 就转发的话, 页面脚本立刻去连 8443 → 报「连不上摄像头信令端口 8443」。
+- **8443 必须也由启动器持有**: 页面的信令地址是 `ws://<location.hostname>:8443`,
+  而且这个端口号是 `mediad` 在发页面时按自己的 `--port` 写进去的 (改成 8543 页面就
+  跟着变, 所以不能靠给 mediad 换端口来绕)。做法是 `mediad --host 127.0.0.1` 只绑
+  loopback, 局域网 IP 上的 8443 归启动器。这样**十分钟前打开、mediad 已被停掉的旧
+  标签页**, 点「连接」照样能把 `mediad` 叫醒 —— 否则页面只会一直报 8443 连不上,
+  直到强制刷新重新请求 8080。
+- 启动器在启动时取一次主 IPv4 (UDP connect 到 `192.0.2.1:9`, 不发包), 绑到这个地址;
+  accept 超时时对比地址, 变了就关掉重绑, 所以 DHCP 换 IP 后不用重启服务。
+- 空闲判定看**活跃转发连接数**: 控制台那条转发很短, 信令那条等于浏览器的 WebSocket
+  会话, 也就是"有人在看"。两条都没有、且静默满 10 分钟 (`CAMERA_IDLE_SECONDS`) 就
+  `systemctl stop mediad`, CPU 回到 0。别再用 `/proc/net/tcp` 数 8443: `mediad`
+  自己会和自己建一条 loopback 连接, 很容易被误判成观众。
 - 想临时抓帧/用 `robotctl frame` 时, 手动 `systemctl start mediad` 即可 (同样会在
   空闲 10 分钟后被停):
 
@@ -141,7 +151,8 @@ journalctl -u camera-launcher -f
 
 安装方法见 `scripts/setup-board-a733.sh`; 手工部署就是三件事: 把
 `scripts/camera-launcher.py` 放进 `/usr/local/bin/`, 装 `camera-launcher.service`,
-并给 `mediad.service` 的 `ExecStart` 追加 `--web-port 8081` (再 `systemctl disable mediad`)。
+并给 `mediad.service` 的 `ExecStart` 追加 `--host 127.0.0.1 --web-port 8081`
+(再 `systemctl disable mediad`)。
 
 A733 侧的硬件编码器 (Radxa 路线用的 mpph264enc 是 RK 专属) 尚未验证; 没有硬件编码器时 webrtcsink 会退到软件 H.264 (`openh264enc`), 1GB 内存版可能吃紧 —— 所以默认先用 720p 档位。
 
