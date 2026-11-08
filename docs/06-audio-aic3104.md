@@ -103,6 +103,11 @@ RESULT: MICROPHONE PICKS UP SOUND
 
 判据是 `ratio > 3` 且音调段幅值 `> 20`。`NO PICKUP` 时先查第 3 节的 `numid=11` 有没有到 118。
 
+放音的实测口径 (2026-11-08): 一段 20 s 的合成旋律 (`aplay -D plughw:aic3104hat song.wav`) 走 LINE OUT →
+PAM8406 → 4 Ω 喇叭, 声音干净、无破音。默认 `PCM = 60` (−33.5 dB) 在桌面上听已经够用; 想要明显更响就
+`amixer -c aic3104hat sset PCM 85` (−21 dB) —— 开机 `aic3104-mixer.service` 会重新设回 60, 要长期改就改
+脚本里那一行。
+
 ## 5. 会误判成硬件故障的坑
 
 | 现象 | 真正原因 |
